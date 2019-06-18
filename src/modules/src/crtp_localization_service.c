@@ -50,6 +50,7 @@ typedef enum
   EXT_POSITION        = 0,
   GENERIC_TYPE        = 1,
   EXT_POSITION_PACKED = 2,
+  EXT_POSE            = 3,
 } locsrvChannels_t;
 
 typedef struct
@@ -70,7 +71,32 @@ typedef struct {
   int16_t z; // mm
 } __attribute__((packed)) extPositionPackedItem;
 
+// up to 2 items per CRTP packet
+typedef struct {
+  uint8_t id; // last 8 bit of the Crazyflie address
+  int16_t x; // mm
+  int16_t y; // mm
+  int16_t z; // mm
+  uint32_t quat; // compressed quaternion, see quatcompress.h
+} __attribute__((packed)) extPosePackedItem;
+
+// External Pose information
+struct CrtpExtPose
+{
+  float x; // in m
+  float y; // in m
+  float z; // in m
+  float qx;
+  float qy;
+  float qz;
+  float qw;
+} __attribute__((packed));
+
+
+
 // Struct for logging position information
+//
+static poseMeasurement_t ext_pose;
 static positionMeasurement_t ext_pos;
 static CRTPPacket pkRange;
 static uint8_t rangeIndex;
@@ -108,6 +134,9 @@ static void locSrvCrtpCB(CRTPPacket* pk)
       genericLocHandle(pk);
     case EXT_POSITION_PACKED:
       extPositionPackedHandler(pk);
+      break;
+    case EXT_POSE:
+      extPoseHandler(pk);
     default:
       break;
   }
@@ -160,6 +189,22 @@ static void extPositionPackedHandler(CRTPPacket* pk)
     }
   }
 }
+
+static void extPoseHandler(CRTPPacket* pk)
+{
+    const struct CrtpExtPose* data = (const struct CrtpExtPose*)&pk->data[1];
+    ext_pose.x = data->x;
+    ext_pose.y = data->y;
+    ext_pose.z = data->z;
+    ext_pose.quat.x = data->qx;
+    ext_pose.quat.y = data->qy;
+    ext_pose.quat.z = data->qz;
+    ext_pose.quat.w = data->qw;
+    ext_pose.stdDevPos = extPosStdDev;
+    ext_pose.stdDevQuat = extQuatStdDev;
+    estimatorEnqueuePose(&ext_pose);
+}
+
 
 void locSrvSendPacket(locsrv_t type, uint8_t *data, uint8_t length)
 {
