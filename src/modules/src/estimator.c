@@ -5,6 +5,7 @@
 #include "estimator.h"
 #include "estimator_complementary.h"
 #include "estimator_kalman.h"
+#include "estimator_kalmanUSC.h" 
 
 #define DEFAULT_ESTIMATOR complementaryEstimator
 static StateEstimatorType currentEstimator = anyEstimator;
@@ -22,6 +23,7 @@ typedef struct {
   bool (*estimatorEnqueueTOF)(const tofMeasurement_t *tof);
   bool (*estimatorEnqueueAbsoluteHeight)(const heightMeasurement_t *height);
   bool (*estimatorEnqueueFlow)(const flowMeasurement_t *flow);
+  bool (*estimatorEnqueuePose)(const poseMeasurement_t *pose);
 } EstimatorFcns;
 
 #define NOT_IMPLEMENTED ((void*)0)
@@ -71,12 +73,7 @@ static EstimatorFcns estimatorFunctions[] = {
     .test = estimatorKalmanUSCTest,
     .update = estimatorKalmanUSC,
     .name = "KalmanUSC",
-    .estimatorEnqueueTDOA = estimatorKalmanUSCEnqueueTDOA,
     .estimatorEnqueuePosition = estimatorKalmanUSCEnqueuePosition,
-    .estimatorEnqueueDistance = estimatorKalmanUSCEnqueueDistance,
-    .estimatorEnqueueTOF = estimatorKalmanUSCEnqueueTOF,
-    .estimatorEnqueueAbsoluteHeight = estimatorKalmanUSCEnqueueAbsoluteHeight,
-    .estimatorEnqueueFlow = estimatorKalmanUSCEnqueueFlow,
 	.estimatorEnqueuePose = estimatorKalmanUSCEnqueuePose,
     },
 };
