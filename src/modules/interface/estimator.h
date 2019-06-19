@@ -50,6 +50,6 @@ bool estimatorEnqueueDistance(const distanceMeasurement_t *dist);
 bool estimatorEnqueueTOF(const tofMeasurement_t *tof);
 bool estimatorEnqueueAbsoluteHeight(const heightMeasurement_t *height);
 bool estimatorEnqueueFlow(const flowMeasurement_t *flow);
-bool estimatorEnqueuePose(const poseMeasurement_T * pose);
+bool estimatorEnqueuePose(const poseMeasurement_t * pose);
 
 #endif //__ESTIMATOR_H__
