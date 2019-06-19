@@ -102,6 +102,7 @@ static CRTPPacket pkRange;
 static uint8_t rangeIndex;
 static bool enableRangeStreamFloat = false;
 static float extPosStdDev = 0.01;
+static float extQuatStdDev = 0.01;
 static bool isInit = false;
 static uint8_t my_id;
 
@@ -109,6 +110,7 @@ static void locSrvCrtpCB(CRTPPacket* pk);
 static void extPositionHandler(CRTPPacket* pk);
 static void genericLocHandle(CRTPPacket* pk);
 static void extPositionPackedHandler(CRTPPacket* pk);
+static void extPoseHandler(CRTPPacket* pk);
 
 void locSrvInit()
 {
@@ -251,4 +253,5 @@ LOG_GROUP_STOP(ext_pos)
 PARAM_GROUP_START(locSrv)
   PARAM_ADD(PARAM_UINT8, enRangeStreamFP32, &enableRangeStreamFloat)
   PARAM_ADD(PARAM_FLOAT, extPosStdDev, &extPosStdDev)
+  PARAM_ADD(PARAM_FLOAT, extQuatStdDev, &extQuatStdDev)
 PARAM_GROUP_STOP(locSrv)
