@@ -13,6 +13,7 @@
 #include "stabilizer_types.h"
 #include "sensors.h"
 #include "param.h"
+#include "log.h"
 
 #include "stm32f4xx.h"
 #include "FreeRTOS.h"
@@ -194,12 +195,29 @@ bool estimatorKalmanUSCEnqueuePosition(const positionMeasurement_t *pos)
 	return stateEstimatorUSCEnqueueExternalMeasurement((void *)&m);
 }
 
+static float x_mocap;
+static float y_mocap;
+static float z_mocap;
+static float q0_mocap;
+static float q1_mocap;
+static float q2_mocap;
+static float q3_mocap;
+
 bool estimatorKalmanUSCEnqueuePose(const poseMeasurement_t *pose)
 {
 	struct measurement m = {
 		.type = measurementPose,
 		.pose = *pose
 	};
+	
+	x_mocap = m.pose.pos[0];
+	y_mocap = m.pose.pos[1];
+	z_mocap = m.pose.pos[2];
+	q0_mocap = m.pose.quat.q0;
+	q1_mocap = m.pose.quat.q1;
+	q2_mocap = m.pose.quat.q2;
+	q3_mocap = m.pose.quat.q3;
+
 	return stateEstimatorUSCEnqueueExternalMeasurement((void *)&m);
 }
 
@@ -210,3 +228,23 @@ PARAM_GROUP_START(kalmanUSC)
   PARAM_ADD(PARAM_FLOAT, initialY, &initialPos.y)
   PARAM_ADD(PARAM_FLOAT, initialZ, &initialPos.z)
 PARAM_GROUP_STOP(kalmanUSC)
+
+LOG_GROUP_START(ekf_mocap)
+  LOG_ADD(LOG_FLOAT, x, &x_mocap)
+  LOG_ADD(LOG_FLOAT, y, &y_mocap)
+  LOG_ADD(LOG_FLOAT, z, &z_mocap)
+  LOG_ADD(LOG_FLOAT, q0, &q0_mocap)
+  LOG_ADD(LOG_FLOAT, q1, &q1_mocap)
+  LOG_ADD(LOG_FLOAT, q2, &q2_mocap)
+  LOG_ADD(LOG_FLOAT, q3, &q3_mocap)
+LOG_GROUP_STOP(ekf_mocap)
+
+LOG_GROUP_START(ekf_usc)
+  LOG_ADD(LOG_FLOAT, x, &ekfb.pos.x)
+  LOG_ADD(LOG_FLOAT, y, &ekfb.pos.y)
+  LOG_ADD(LOG_FLOAT, z, &ekfb.pos.x)
+  LOG_ADD(LOG_FLOAT, q0, &ekfb.quat.x)
+  LOG_ADD(LOG_FLOAT, q1, &ekfb.quat.y)
+  LOG_ADD(LOG_FLOAT, q2, &ekfb.quat.z)
+  LOG_ADD(LOG_FLOAT, q3, &ekfb.quat.w)
+LOG_GROUP_STOP(ekf_usc)
