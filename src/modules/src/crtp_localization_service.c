@@ -276,9 +276,9 @@ void locSrvSendRangeFloat(uint8_t id, float range)
 }
 
 LOG_GROUP_START(ext_pos)
-  LOG_ADD(LOG_FLOAT, X, &ext_pos.x)
-  LOG_ADD(LOG_FLOAT, Y, &ext_pos.y)
-  LOG_ADD(LOG_FLOAT, Z, &ext_pos.z)
+  LOG_ADD(LOG_FLOAT, X, &ext_pose.pos[0])
+  LOG_ADD(LOG_FLOAT, Y, &ext_pose.pos[1])
+  LOG_ADD(LOG_FLOAT, Z, &ext_pose.pos[2])
 LOG_GROUP_STOP(ext_pos)
 
 PARAM_GROUP_START(locSrv)
