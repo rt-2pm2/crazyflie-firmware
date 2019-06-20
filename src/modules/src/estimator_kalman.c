@@ -549,13 +549,14 @@ void estimatorKalmanGetEstimatedPos(point_t* pos) {
 }
 
 // Temporary development groups
+/*
 LOG_GROUP_START(kalman_states)
   LOG_ADD(LOG_FLOAT, ox, &coreData.S[KC_STATE_X])
   LOG_ADD(LOG_FLOAT, oy, &coreData.S[KC_STATE_Y])
   LOG_ADD(LOG_FLOAT, vx, &coreData.S[KC_STATE_PX])
   LOG_ADD(LOG_FLOAT, vy, &coreData.S[KC_STATE_PY])
 LOG_GROUP_STOP(kalman_states)
-
+*/
 
 // Stock log groups
 LOG_GROUP_START(kalman)
