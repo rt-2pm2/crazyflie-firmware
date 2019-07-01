@@ -203,6 +203,7 @@ static bool quadIsFlying = false;
 static int32_t lastTDOAUpdate;
 static uint32_t lastFlightCmd;
 static uint32_t takeoffTime;
+static float alpha_pose;
 
 /**
  * Supporting and utility functions
@@ -537,6 +538,20 @@ bool estimatorKalmanEnqueueAbsoluteHeight(const heightMeasurement_t *height)
   return stateEstimatorEnqueueExternalMeasurement(heightDataQueue, (void *)height);
 }
 
+bool estimatorKalmanSetPose(const poseMeasurement_t *pose)
+{
+	// On the Crazyflie the quaternion is in the form
+	// (w, x, y, z), whilst on the crazyflie_ros it's
+	// (x, y, z, w)
+	coreData.q[0] = (1 - alpha_pose) * coreData.q[0] + alpha_pose * pose->quat.q3;
+	coreData.q[1] = (1 - alpha_pose) * coreData.q[1] + alpha_pose * pose->quat.q0;
+	coreData.q[2] = (1 - alpha_pose) * coreData.q[2] + alpha_pose * pose->quat.q1;
+	coreData.q[3] = (1 - alpha_pose) * coreData.q[3] + alpha_pose * pose->quat.q2;
+
+	return true;
+}
+
+
 bool estimatorKalmanTest(void)
 {
   return isInit;
@@ -588,4 +603,5 @@ LOG_GROUP_STOP(kalman)
 PARAM_GROUP_START(kalman)
   PARAM_ADD(PARAM_UINT8, resetEstimation, &coreData.resetEstimation)
   PARAM_ADD(PARAM_UINT8, quadIsFlying, &quadIsFlying)
+  PARAM_ADD(PARAM_FLOAT, poseblend_coeff, &alpha_pose)
 PARAM_GROUP_STOP(kalman)
