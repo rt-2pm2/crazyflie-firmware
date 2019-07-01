@@ -42,7 +42,7 @@ static EstimatorFcns estimatorFunctions[] = {
     .estimatorEnqueueTOF = NOT_IMPLEMENTED,
     .estimatorEnqueueAbsoluteHeight = NOT_IMPLEMENTED,
     .estimatorEnqueueFlow = NOT_IMPLEMENTED,
-	.estimatorEnqueuePose = NOT_IMPLEMENTED,
+    .estimatorEnqueuePose = NOT_IMPLEMENTED,
   }, // Any estimator
   {
     .init = estimatorComplementaryInit,
@@ -56,7 +56,7 @@ static EstimatorFcns estimatorFunctions[] = {
     .estimatorEnqueueTOF = NOT_IMPLEMENTED,
     .estimatorEnqueueAbsoluteHeight = NOT_IMPLEMENTED,
     .estimatorEnqueueFlow = NOT_IMPLEMENTED,
-	.estimatorEnqueuePose = NOT_IMPLEMENTED,
+    .estimatorEnqueuePose = NOT_IMPLEMENTED,
   },
   {
     .init = estimatorKalmanInit,
@@ -70,7 +70,7 @@ static EstimatorFcns estimatorFunctions[] = {
     .estimatorEnqueueTOF = estimatorKalmanEnqueueTOF,
     .estimatorEnqueueAbsoluteHeight = estimatorKalmanEnqueueAbsoluteHeight,
     .estimatorEnqueueFlow = estimatorKalmanEnqueueFlow,
-	.estimatorEnqueuePose = NOT_IMPLEMENTED,
+    .estimatorEnqueuePose = estimatorKalmanSetPose,
   },
   {
     .init = estimatorKalmanUSCInit,
@@ -78,7 +78,7 @@ static EstimatorFcns estimatorFunctions[] = {
     .update = estimatorKalmanUSC,
     .name = "KalmanUSC",
     .estimatorEnqueuePosition = estimatorKalmanUSCEnqueuePosition,
-	.estimatorEnqueuePose = estimatorKalmanUSCEnqueuePose,
+    .estimatorEnqueuePose = estimatorKalmanUSCEnqueuePose,
     },
 };
 
@@ -183,9 +183,9 @@ bool estimatorEnqueueFlow(const flowMeasurement_t *flow) {
 }
 
 bool estimatorEnqueuePose(const poseMeasurement_t *pose) {
-	if (estimatorFunctions[currentEstimator].estimatorEnqueuePose) {
-		return estimatorFunctions[currentEstimator].estimatorEnqueuePose(pose);
-	}
+    if (estimatorFunctions[currentEstimator].estimatorEnqueuePose) {
+        return estimatorFunctions[currentEstimator].estimatorEnqueuePose(pose);
+    }
 
-	return false;
+    return false;
 }
