@@ -1,4 +1,5 @@
 /**
+se
  * Authored by Michael Hamer (http://www.mikehamer.info), June 2016
  * Thank you to Mark Mueller (www.mwm.im) for advice during implementation,
  * and for derivation of the original filter in the below-cited paper.
@@ -543,6 +544,18 @@ bool estimatorKalmanSetPose(const poseMeasurement_t *pose)
 	// On the Crazyflie the quaternion is in the form
 	// (w, x, y, z), whilst on the crazyflie_ros it's
 	// (x, y, z, w)
+	//
+	// Blending the external position with the current state:
+	// 	0 -> Do not blend
+	// 	1 -> Fix the attitude with the External measurement
+	
+	// Check for out of boundary value for alpha_pose (0.0 <= alpha_pose <= 1.0)
+	if (alpha_pose < (0.0f))
+		alpha_pose = 0.0f;
+	
+	if (alpha_pose > (1.0f))
+		alpha_pose = 1.0f;
+
 	coreData.q[0] = (1 - alpha_pose) * coreData.q[0] + alpha_pose * pose->quat.q3;
 	coreData.q[1] = (1 - alpha_pose) * coreData.q[1] + alpha_pose * pose->quat.q0;
 	coreData.q[2] = (1 - alpha_pose) * coreData.q[2] + alpha_pose * pose->quat.q1;
