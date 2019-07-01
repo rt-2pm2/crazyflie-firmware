@@ -20,3 +20,5 @@ tags
 **/__pycache__/**
 
 current_platform.mk
+
+*.out
