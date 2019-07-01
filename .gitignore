@@ -26,4 +26,4 @@ current_platform.mk
 /docs/_site/*
 /docs/Gemfile.lock
 
-
+*.out
