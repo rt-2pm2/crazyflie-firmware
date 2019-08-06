@@ -11,7 +11,8 @@ CFLAGS += $(EXTRA_CFLAGS)
 
 ######### JTAG and environment configuration ##########
 OPENOCD           ?= openocd
-OPENOCD_INTERFACE ?= interface/stlink-v2.cfg
+#OPENOCD_INTERFACE ?= interface/stlink-v2.cfg
+OPENOCD_INTERFACE ?= interface/stlink.cfg
 OPENOCD_CMDS      ?=
 CROSS_COMPILE     ?= arm-none-eabi-
 PYTHON2           ?= python2
@@ -53,7 +54,8 @@ PORT = $(FREERTOS)/portable/GCC/ARM_CM4F
 LINKER_DIR = tools/make/F405/linker
 ST_OBJ_DIR  = tools/make/F405
 
-OPENOCD_TARGET    ?= target/stm32f4x_stlink.cfg
+#OPENOCD_TARGET    ?= target/stm32f4x_stlink.cfg
+OPENOCD_TARGET    ?= target/stm32f4x.cfg
 
 
 # St Lib
