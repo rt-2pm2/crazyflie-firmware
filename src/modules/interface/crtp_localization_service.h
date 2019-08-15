@@ -58,7 +58,6 @@ typedef enum
   EMERGENCY_STOP_WATCHDOG = 4,
   COMM_GNSS_NMEA           = 6,
   COMM_GNSS_PROPRIETARY    = 7,
-  EXT_POSE                 = 8,
   EXT_POSE_PACKED          = 9,
 } locsrv_t;
 

@@ -24,7 +24,6 @@ typedef struct {
   bool (*estimatorEnqueueTOF)(const tofMeasurement_t *tof);
   bool (*estimatorEnqueueAbsoluteHeight)(const heightMeasurement_t *height);
   bool (*estimatorEnqueueFlow)(const flowMeasurement_t *flow);
-  bool (*estimatorEnqueuePose)(const poseMeasurement_t *pose);
 } EstimatorFcns;
 
 #define NOT_IMPLEMENTED ((void*)0)
@@ -42,7 +41,6 @@ static EstimatorFcns estimatorFunctions[] = {
     .estimatorEnqueueTOF = NOT_IMPLEMENTED,
     .estimatorEnqueueAbsoluteHeight = NOT_IMPLEMENTED,
     .estimatorEnqueueFlow = NOT_IMPLEMENTED,
-    .estimatorEnqueuePose = NOT_IMPLEMENTED,
   }, // Any estimator
   {
     .init = estimatorComplementaryInit,
@@ -56,7 +54,6 @@ static EstimatorFcns estimatorFunctions[] = {
     .estimatorEnqueueTOF = NOT_IMPLEMENTED,
     .estimatorEnqueueAbsoluteHeight = NOT_IMPLEMENTED,
     .estimatorEnqueueFlow = NOT_IMPLEMENTED,
-    .estimatorEnqueuePose = NOT_IMPLEMENTED,
   },
   {
     .init = estimatorKalmanInit,
@@ -65,7 +62,6 @@ static EstimatorFcns estimatorFunctions[] = {
     .name = "Kalman",
     .estimatorEnqueueTDOA = estimatorKalmanEnqueueTDOA,
     .estimatorEnqueuePosition = estimatorKalmanEnqueuePosition,
-    .estimatorEnqueuePose = estimatorKalmanEnqueuePose,
     .estimatorEnqueueDistance = estimatorKalmanEnqueueDistance,
     .estimatorEnqueueTOF = estimatorKalmanEnqueueTOF,
     .estimatorEnqueueAbsoluteHeight = estimatorKalmanEnqueueAbsoluteHeight,
@@ -180,12 +176,4 @@ bool estimatorEnqueueFlow(const flowMeasurement_t *flow) {
   }
 
   return false;
-}
-
-bool estimatorEnqueuePose(const poseMeasurement_t *pose) {
-    if (estimatorFunctions[currentEstimator].estimatorEnqueuePose) {
-        return estimatorFunctions[currentEstimator].estimatorEnqueuePose(pose);
-    }
-
-    return false;
 }

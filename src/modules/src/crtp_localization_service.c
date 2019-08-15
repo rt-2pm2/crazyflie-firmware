@@ -81,20 +81,6 @@ typedef struct {
   uint32_t quat; // compressed quaternion, see quatcompress.h
 } __attribute__((packed)) extPosePackedItem;
 
-// External Pose information
-struct CrtpExtPose
-{
-  float x; // in m
-  float y; // in m
-  float z; // in m
-  float qx;
-  float qy;
-  float qz;
-  float qw;
-} __attribute__((packed));
-
-
-
 // Struct for logging position information
 //
 static poseMeasurement_t ext_pose;
