@@ -50,6 +50,8 @@
 #include "usddeck.h"
 #include "quatcompress.h"
 
+#include "estimator_dd.h"
+
 static bool isInit;
 static bool emergencyStop = false;
 static int emergencyStopTimeout = EMERGENCY_STOP_TIMEOUT_DISABLED;
@@ -169,6 +171,7 @@ void stabilizerInit(StateEstimatorType estimator)
 
   sensorsInit();
   stateEstimatorInit(estimator);
+  estimatorDDInit(); // Initialize the DataDriven Estimator
   controllerInit(ControllerTypeAny);
   powerDistributionInit();
   if (estimator == kalmanEstimator)
@@ -592,12 +595,13 @@ LOG_ADD(LOG_FLOAT, z, &sensorData.gyroSec.z)
 LOG_GROUP_STOP(gyroSec)
 #endif
 
+	/*
 LOG_GROUP_START(mag)
 LOG_ADD(LOG_FLOAT, x, &sensorData.mag.x)
 LOG_ADD(LOG_FLOAT, y, &sensorData.mag.y)
 LOG_ADD(LOG_FLOAT, z, &sensorData.mag.z)
 LOG_GROUP_STOP(mag)
-
+*/
 LOG_GROUP_START(controller)
 LOG_ADD(LOG_INT16, ctr_yaw, &control.yaw)
 LOG_GROUP_STOP(controller)

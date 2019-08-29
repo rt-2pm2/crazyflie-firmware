@@ -41,6 +41,7 @@
 #include "locodeck.h"
 
 #include "estimator.h"
+#include "estimator_dd.h"
 #include "quatcompress.h"
 
 #define NBR_OF_RANGES_IN_PACKET   5
@@ -143,6 +144,7 @@ static void extPositionHandler(CRTPPacket* pk)
   ext_pos.z = data->z;
   ext_pos.stdDev = extPosStdDev;
   estimatorEnqueuePosition(&ext_pos);
+	estimatorDDNewMeasurement(&ext_pos);
 }
 
 static void genericLocHandle(CRTPPacket* pk)
@@ -203,7 +205,7 @@ static void extPositionPackedHandler(CRTPPacket* pk)
       ext_pos.z = item->z / 1000.0f;
       ext_pos.stdDev = extPosStdDev;
       estimatorEnqueuePosition(&ext_pos);
-
+			estimatorDDNewMeasurement(&ext_pos);
       break;
     }
   }

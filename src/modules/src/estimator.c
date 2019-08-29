@@ -6,6 +6,7 @@
 #include "estimator_complementary.h"
 #include "estimator_kalman.h"
 #include "estimator_kalmanUSC.h" 
+#include "estimator_dd.h"
 
 #define DEFAULT_ESTIMATOR complementaryEstimator
 static StateEstimatorType currentEstimator = anyEstimator;
@@ -55,8 +56,7 @@ static EstimatorFcns estimatorFunctions[] = {
     .estimatorEnqueueAbsoluteHeight = NOT_IMPLEMENTED,
     .estimatorEnqueueFlow = NOT_IMPLEMENTED,
   },
-  {
-    .init = estimatorKalmanInit,
+  { .init = estimatorKalmanInit,
     .test = estimatorKalmanTest,
     .update = estimatorKalman,
     .name = "Kalman",
@@ -76,6 +76,20 @@ static EstimatorFcns estimatorFunctions[] = {
     .estimatorEnqueuePosition = estimatorKalmanUSCEnqueuePosition,
     .estimatorEnqueuePose = estimatorKalmanUSCEnqueuePose,
     },
+  {
+	.init = estimatorDDInit,
+	.test = estimatorDDTest,
+	.update = NOT_IMPLEMENTED,
+	.name = "DD",
+    .estimatorEnqueuePosition = estimatorDDNewMeasurement,
+	.estimatorEnqueueTDOA = NOT_IMPLEMENTED,
+    .estimatorEnqueuePose = NOT_IMPLEMENTED,
+    .estimatorEnqueueDistance = NOT_IMPLEMENTED,
+    .estimatorEnqueueTOF = NOT_IMPLEMENTED,
+    .estimatorEnqueueAbsoluteHeight = NOT_IMPLEMENTED,
+    .estimatorEnqueueFlow = NOT_IMPLEMENTED,
+  },
+
 };
 
 
