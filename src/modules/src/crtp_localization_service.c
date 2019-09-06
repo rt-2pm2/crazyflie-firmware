@@ -83,11 +83,8 @@ typedef struct {
 } __attribute__((packed)) extPosePackedItem;
 
 // Struct for logging position information
-//
 static poseMeasurement_t ext_pose;
 static positionMeasurement_t ext_pos;
-// Struct for logging pose information
-static poseMeasurement_t ext_pose;
 
 static CRTPPacket pkRange;
 static uint8_t rangeIndex;
