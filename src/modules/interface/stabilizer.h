@@ -64,5 +64,10 @@ void stabilizerResetEmergencyStop();
  */
 void stabilizerSetEmergencyStopTimeout(int timeout);
 
+/**
+ * Dirty trick to modify the thrust control without messing up with modules
+ * This function is called by the DDController
+ */
+void dd_controller_push_ctrl(float ctrl_dd);
 
 #endif /* STABILIZER_H_ */

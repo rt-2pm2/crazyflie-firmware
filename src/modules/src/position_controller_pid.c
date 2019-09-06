@@ -220,11 +220,11 @@ void velocityController(float* thrust, attitude_t *attitude, setpoint_t *setpoin
   attitude->roll  = constrain(attitude->roll,  -rpLimit, rpLimit);
   attitude->pitch = constrain(attitude->pitch, -rpLimit, rpLimit);
 
-  // Thrust
-  if (estimatorDDHasNewEstimate()) {
-	  double z = estimatorDDGetEstimatedZ();
-	  thrustRaw = DDController(z); 
-  }
+//  // Thrust
+//  if (estimatorDDHasNewEstimate()) {
+//	  double z = estimatorDDGetEstimatedZ();
+//	  thrustRaw = DDController(z); 
+//  }
 
   // Scale the thrust and add feed forward term
   *thrust = thrustRaw*thrustScale + this.thrustBase;

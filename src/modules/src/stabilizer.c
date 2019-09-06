@@ -69,6 +69,7 @@ static control_t control;
 
 static StateEstimatorType estimatorType;
 static ControllerType controllerType;
+static bool ddc_active = false;
 
 typedef enum { configureAcc, measureNoiseFloor, measureProp, testBattery, restartBatTest, evaluateResult, testDone } TestState;
 #ifdef RUN_PROP_TEST_AT_STARTUP
@@ -120,6 +121,11 @@ static void calcSensorToOutputLatency(const sensorData_t *sensorData)
 {
   uint64_t outTimestamp = usecTimestamp();
   inToOutLatency = outTimestamp - sensorData->interruptTimestamp;
+}
+
+static float thrust_ctrl_dd;
+void dd_controller_push_ctrl(float ctrl_dd) {
+	thrust_ctrl_dd = ctrl_dd;
 }
 
 static void compressState()
@@ -271,13 +277,17 @@ static void stabilizerTask(void* param)
 
       controller(&control, &setpoint, &sensorData, &state, tick);
 
+			if (ddc_active) {
+				control.thrust = thrust_ctrl_dd;
+			}
+
       checkEmergencyStopTimeout();
 
       if (emergencyStop) {
         powerStop();
       } else {
         powerDistribution(&control);
-      }
+			} 
 
       // Log data to uSD card if configured
       if (   usddeckLoggingEnabled()
@@ -520,6 +530,7 @@ PARAM_GROUP_STOP(health)
 PARAM_GROUP_START(stabilizer)
 PARAM_ADD(PARAM_UINT8, estimator, &estimatorType)
 PARAM_ADD(PARAM_UINT8, controller, &controllerType)
+PARAM_ADD(PARAM_UINT8, dd_ctrl_active, &ddc_active)
 PARAM_GROUP_STOP(stabilizer)
 
 LOG_GROUP_START(ctrltarget)
@@ -604,6 +615,8 @@ LOG_GROUP_STOP(mag)
 */
 LOG_GROUP_START(controller)
 LOG_ADD(LOG_INT16, ctr_yaw, &control.yaw)
+LOG_ADD(LOG_FLOAT, dd_thrust, &thrust_ctrl_dd)
+LOG_ADD(LOG_FLOAT, pid_thrust, &control.thrust)
 LOG_GROUP_STOP(controller)
 
 LOG_GROUP_START(stateEstimate)
