@@ -23,6 +23,7 @@ static uint64_t timestamp_old;
 static uint64_t timestamp_ctrl;
 
 float dt_ms;
+double dt_ms_cum = 0;
 static uint32_t msg_counter = 0;
 
 // Estimator State 
@@ -74,6 +75,7 @@ bool estimatorDDNewMeasurement(const positionMeasurement_t *pos) {
 	// Measure the timestamp
   timestamp = usecTimestamp(); // Time in microseconds
   dt_ms = (timestamp - timestamp_old)/1000.0;
+	dt_ms_cum += (double)dt_ms;
   timestamp_old = timestamp;
 
   state_z = pos->z;
@@ -92,8 +94,10 @@ bool estimatorDDNewMeasurement(const positionMeasurement_t *pos) {
 	real_T error = DataDriven_Y.Error;
 	real_T minimumT = DataDriven_Y.MinimumT;
 
-  if (msg_counter % 100 == 0) {
+  if (msg_counter % 1000 == 0) {
 		//subcounter++;
+		DEBUG_PRINT("Execution Time = %f ms\n", dt_ms_cum/1000);
+		dt_ms_cum = 0.0;
 		//DEBUG_PRINT("msg_counter = %lu \n", msg_counter);
 		DEBUG_PRINT("Execution Time = %llu us\n", ctrl_exetime);
 		DEBUG_PRINT("Alpha_est = %.3f\n", (double)alpha_est);
@@ -101,6 +105,8 @@ bool estimatorDDNewMeasurement(const positionMeasurement_t *pos) {
 		DEBUG_PRINT("Error = %.3f\n", (double)error);
 		DEBUG_PRINT("Output = %.3f\n", (double)output);
 		DEBUG_PRINT("MinimumT = %.3f\n", (double)minimumT);
+		DEBUG_PRINT("Z = %.3f\n", state_z);
+		msg_counter = 0;
   }
 
 	if (output != ctrl_dd) {
