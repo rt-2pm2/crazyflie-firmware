@@ -34,12 +34,7 @@
 #include "num.h"
 #include "position_controller.h"
 
-#include "estimator_dd.h"
-
 static float thrustRaw = 0.0;
-float DDController(double z) { // TODO: Define this function...
-	return 0.0;
-}
 
 struct pidInit_s {
   float kp;
@@ -219,12 +214,6 @@ void velocityController(float* thrust, attitude_t *attitude, setpoint_t *setpoin
 
   attitude->roll  = constrain(attitude->roll,  -rpLimit, rpLimit);
   attitude->pitch = constrain(attitude->pitch, -rpLimit, rpLimit);
-
-//  // Thrust
-//  if (estimatorDDHasNewEstimate()) {
-//	  double z = estimatorDDGetEstimatedZ();
-//	  thrustRaw = DDController(z); 
-//  }
 
   // Scale the thrust and add feed forward term
   *thrust = thrustRaw*thrustScale + this.thrustBase;
