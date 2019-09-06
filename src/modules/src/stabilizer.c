@@ -519,37 +519,37 @@ PARAM_ADD(PARAM_UINT8, estimator, &estimatorType)
 PARAM_ADD(PARAM_UINT8, controller, &controllerType)
 PARAM_GROUP_STOP(stabilizer)
 
-LOG_GROUP_START(ctrltarget)
-LOG_ADD(LOG_FLOAT, x, &setpoint.position.x)
-LOG_ADD(LOG_FLOAT, y, &setpoint.position.y)
-LOG_ADD(LOG_FLOAT, z, &setpoint.position.z)
+//LOG_GROUP_START(ctrltarget)
+//LOG_ADD(LOG_FLOAT, x, &setpoint.position.x)
+//LOG_ADD(LOG_FLOAT, y, &setpoint.position.y)
+//LOG_ADD(LOG_FLOAT, z, &setpoint.position.z)
+//
+//LOG_ADD(LOG_FLOAT, vx, &setpoint.velocity.x)
+//LOG_ADD(LOG_FLOAT, vy, &setpoint.velocity.y)
+//LOG_ADD(LOG_FLOAT, vz, &setpoint.velocity.z)
+//
+//LOG_ADD(LOG_FLOAT, ax, &setpoint.acceleration.x)
+//LOG_ADD(LOG_FLOAT, ay, &setpoint.acceleration.y)
+//LOG_ADD(LOG_FLOAT, az, &setpoint.acceleration.z)
+//
+//LOG_ADD(LOG_FLOAT, roll, &setpoint.attitude.roll)
+//LOG_ADD(LOG_FLOAT, pitch, &setpoint.attitude.pitch)
+//LOG_ADD(LOG_FLOAT, yaw, &setpoint.attitudeRate.yaw)
+//LOG_GROUP_STOP(ctrltarget)
 
-LOG_ADD(LOG_FLOAT, vx, &setpoint.velocity.x)
-LOG_ADD(LOG_FLOAT, vy, &setpoint.velocity.y)
-LOG_ADD(LOG_FLOAT, vz, &setpoint.velocity.z)
-
-LOG_ADD(LOG_FLOAT, ax, &setpoint.acceleration.x)
-LOG_ADD(LOG_FLOAT, ay, &setpoint.acceleration.y)
-LOG_ADD(LOG_FLOAT, az, &setpoint.acceleration.z)
-
-LOG_ADD(LOG_FLOAT, roll, &setpoint.attitude.roll)
-LOG_ADD(LOG_FLOAT, pitch, &setpoint.attitude.pitch)
-LOG_ADD(LOG_FLOAT, yaw, &setpoint.attitudeRate.yaw)
-LOG_GROUP_STOP(ctrltarget)
-
-LOG_GROUP_START(ctrltargetZ)
-LOG_ADD(LOG_INT16, x, &setpointCompressed.x)   // position - mm
-LOG_ADD(LOG_INT16, y, &setpointCompressed.y)
-LOG_ADD(LOG_INT16, z, &setpointCompressed.z)
-
-LOG_ADD(LOG_INT16, vx, &setpointCompressed.vx) // velocity - mm / sec
-LOG_ADD(LOG_INT16, vy, &setpointCompressed.vy)
-LOG_ADD(LOG_INT16, vz, &setpointCompressed.vz)
-
-LOG_ADD(LOG_INT16, ax, &setpointCompressed.ax) // acceleration - mm / sec^2
-LOG_ADD(LOG_INT16, ay, &setpointCompressed.ay)
-LOG_ADD(LOG_INT16, az, &setpointCompressed.az)
-LOG_GROUP_STOP(ctrltargetZ)
+//LOG_GROUP_START(ctrltargetZ)
+//LOG_ADD(LOG_INT16, x, &setpointCompressed.x)   // position - mm
+//LOG_ADD(LOG_INT16, y, &setpointCompressed.y)
+//LOG_ADD(LOG_INT16, z, &setpointCompressed.z)
+//
+//LOG_ADD(LOG_INT16, vx, &setpointCompressed.vx) // velocity - mm / sec
+//LOG_ADD(LOG_INT16, vy, &setpointCompressed.vy)
+//LOG_ADD(LOG_INT16, vz, &setpointCompressed.vz)
+//
+//LOG_ADD(LOG_INT16, ax, &setpointCompressed.ax) // acceleration - mm / sec^2
+//LOG_ADD(LOG_INT16, ay, &setpointCompressed.ay)
+//LOG_ADD(LOG_INT16, az, &setpointCompressed.az)
+//LOG_GROUP_STOP(ctrltargetZ)
 
 LOG_GROUP_START(stabilizer)
 LOG_ADD(LOG_FLOAT, roll, &state.attitude.roll)
@@ -592,11 +592,11 @@ LOG_ADD(LOG_FLOAT, z, &sensorData.gyroSec.z)
 LOG_GROUP_STOP(gyroSec)
 #endif
 
-LOG_GROUP_START(mag)
-LOG_ADD(LOG_FLOAT, x, &sensorData.mag.x)
-LOG_ADD(LOG_FLOAT, y, &sensorData.mag.y)
-LOG_ADD(LOG_FLOAT, z, &sensorData.mag.z)
-LOG_GROUP_STOP(mag)
+//LOG_GROUP_START(mag)
+//LOG_ADD(LOG_FLOAT, x, &sensorData.mag.x)
+//LOG_ADD(LOG_FLOAT, y, &sensorData.mag.y)
+//LOG_ADD(LOG_FLOAT, z, &sensorData.mag.z)
+//LOG_GROUP_STOP(mag)
 
 LOG_GROUP_START(controller)
 LOG_ADD(LOG_INT16, ctr_yaw, &control.yaw)
@@ -619,10 +619,10 @@ LOG_ADD(LOG_FLOAT, roll, &state.attitude.roll)
 LOG_ADD(LOG_FLOAT, pitch, &state.attitude.pitch)
 LOG_ADD(LOG_FLOAT, yaw, &state.attitude.yaw)
 
-LOG_ADD(LOG_FLOAT, qx, &state.attitudeQuaternion.x)
-LOG_ADD(LOG_FLOAT, qy, &state.attitudeQuaternion.y)
-LOG_ADD(LOG_FLOAT, qz, &state.attitudeQuaternion.z)
-LOG_ADD(LOG_FLOAT, qw, &state.attitudeQuaternion.w)
+//LOG_ADD(LOG_FLOAT, qx, &state.attitudeQuaternion.x)
+//LOG_ADD(LOG_FLOAT, qy, &state.attitudeQuaternion.y)
+//LOG_ADD(LOG_FLOAT, qz, &state.attitudeQuaternion.z)
+//LOG_ADD(LOG_FLOAT, qw, &state.attitudeQuaternion.w)
 LOG_GROUP_STOP(stateEstimate)
 
 LOG_GROUP_START(stateEstimateZ)
