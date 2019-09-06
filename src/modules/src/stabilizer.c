@@ -615,8 +615,8 @@ LOG_GROUP_STOP(mag)
 */
 LOG_GROUP_START(controller)
 LOG_ADD(LOG_INT16, ctr_yaw, &control.yaw)
-LOG_ADD(LOG_FLOAT, dd_thrust, &thrust_ctrl_dd)
-LOG_ADD(LOG_FLOAT, pid_thrust, &control.thrust)
+//LOG_ADD(LOG_FLOAT, dd_thrust, &thrust_ctrl_dd)
+//LOG_ADD(LOG_FLOAT, pid_thrust, &control.thrust)
 LOG_GROUP_STOP(controller)
 
 LOG_GROUP_START(stateEstimate)
