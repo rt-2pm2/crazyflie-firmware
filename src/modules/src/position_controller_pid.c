@@ -34,8 +34,6 @@
 #include "num.h"
 #include "position_controller.h"
 
-static float thrustRaw = 0.0;
-
 struct pidInit_s {
   float kp;
   float ki;
@@ -215,6 +213,8 @@ void velocityController(float* thrust, attitude_t *attitude, setpoint_t *setpoin
   attitude->roll  = constrain(attitude->roll,  -rpLimit, rpLimit);
   attitude->pitch = constrain(attitude->pitch, -rpLimit, rpLimit);
 
+  // Thrust
+  float thrustRaw = runPid(state->velocity.z, &this.pidVZ, setpoint->velocity.z, DT);
   // Scale the thrust and add feed forward term
   *thrust = thrustRaw*thrustScale + this.thrustBase;
   // Check for minimum thrust
