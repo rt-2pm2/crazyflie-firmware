@@ -123,7 +123,7 @@ static void calcSensorToOutputLatency(const sensorData_t *sensorData)
   inToOutLatency = outTimestamp - sensorData->interruptTimestamp;
 }
 
-static float thrust_ctrl_dd;
+float thrust_ctrl_dd = 0.0;
 void dd_controller_push_ctrl(float ctrl_dd) {
 	thrust_ctrl_dd = ctrl_dd;
 }
@@ -570,6 +570,7 @@ LOG_ADD(LOG_FLOAT, roll, &state.attitude.roll)
 LOG_ADD(LOG_FLOAT, pitch, &state.attitude.pitch)
 LOG_ADD(LOG_FLOAT, yaw, &state.attitude.yaw)
 LOG_ADD(LOG_UINT16, thrust, &control.thrust)
+LOG_ADD(LOG_FLOAT, dd_thrust, &thrust_ctrl_dd)
 LOG_GROUP_STOP(stabilizer)
 
 LOG_GROUP_START(acc)
@@ -606,7 +607,7 @@ LOG_ADD(LOG_FLOAT, z, &sensorData.gyroSec.z)
 LOG_GROUP_STOP(gyroSec)
 #endif
 
-	/*
+/*
 LOG_GROUP_START(mag)
 LOG_ADD(LOG_FLOAT, x, &sensorData.mag.x)
 LOG_ADD(LOG_FLOAT, y, &sensorData.mag.y)
@@ -615,8 +616,6 @@ LOG_GROUP_STOP(mag)
 */
 LOG_GROUP_START(controller)
 LOG_ADD(LOG_INT16, ctr_yaw, &control.yaw)
-//LOG_ADD(LOG_FLOAT, dd_thrust, &thrust_ctrl_dd)
-//LOG_ADD(LOG_FLOAT, pid_thrust, &control.thrust)
 LOG_GROUP_STOP(controller)
 
 LOG_GROUP_START(stateEstimate)
