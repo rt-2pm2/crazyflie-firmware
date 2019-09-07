@@ -27,18 +27,18 @@
 // A matrix
 float A[STATE_SIZE * STATE_SIZE] = 
 {
-	1.0,	(TS), (0.5 * TS * TS),
-	0.0,	1.0, (TS),
+	1.0,	-(TS), (0.5 * TS * TS),
+	0.0,	1.0, -(TS),
 	0.0, 	0.0,	1.0,
 };
 
 float O[BUFF_SIZE * STATE_SIZE] = 
 {	
-	1.0, 	0.0, 		0.0,
-	1.0, 	TS, 		TS2/2.0,
-	1.0, 	2*TS, 	2.0 * TS2,
-	1.0, 	3*TS,		9.0/2.0 * TS2,
-	1.0, 	4*TS, 	8.0 * TS2,
+	1.0, 	0.0, 	0.0,
+	1.0, 	-TS, 	TS2/2,
+	1.0, 	-2*TS, 	2*TS2,
+	1.0, 	-3*TS,	9/2*TS2,
+	1.0, 	-4*TS, 	8*TS2,
 };
 
 // C matrix
