@@ -72,6 +72,7 @@ se
 #include "param.h"
 #include "physicalConstants.h"
 
+#include "debug.h"
 
 // #define KALMAN_USE_BARO_UPDATE
 
@@ -448,6 +449,7 @@ void estimatorKalmanInit(void) {
   }
   else
   {
+		DEBUG_PRINT("Resetting Kalman Filter...\n");
     xQueueReset(distDataQueue);
     xQueueReset(posDataQueue);
     xQueueReset(poseDataQueue);
