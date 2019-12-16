@@ -15,7 +15,7 @@ CFLAGS += $(EXTRA_CFLAGS)
 OPENOCD           ?= openocd
 OPENOCD_INTERFACE ?= interface/stlink-v2.cfg
 OPENOCD_CMDS      ?=
-CROSS_COMPILE     ?= arm-none-eabi-
+CROSS_COMPILE     ?= llvm-
 PYTHON2           ?= python2
 DFU_UTIL          ?= dfu-util
 CLOAD             ?= 1
@@ -74,8 +74,8 @@ ST_OBJ += usb_core.o usb_dcd_int.o usb_dcd.o
 # USB Device obj
 ST_OBJ += usbd_ioreq.o usbd_req.o usbd_core.o
 
-PROCESSOR = -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16
-CFLAGS += -fno-math-errno -DARM_MATH_CM4 -D__FPU_PRESENT=1 -D__TARGET_FPU_VFP -mfp16-format=ieee
+PROCESSOR = --target=arm-none-eabi -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16
+CFLAGS += -fno-math-errno -DARM_MATH_CM4 -D__FPU_PRESENT=1 -D__TARGET_FPU_VFP #-mfp16-format=ieee
 
 #Flags required by the ST library
 CFLAGS += -DSTM32F4XX -DSTM32F40_41xxx -DHSE_VALUE=8000000 -DUSE_STDPERIPH_DRIVER
@@ -257,11 +257,16 @@ OBJ = $(FREERTOS_OBJ) $(PORT_OBJ) $(ST_OBJ) $(PROJ_OBJ) $(CRT0)
 
 ############### Compilation configuration ################
 AS = $(CROSS_COMPILE)as
-CC = $(CROSS_COMPILE)gcc
-LD = $(CROSS_COMPILE)gcc
+CC = clang 
+LD = clang
 SIZE = $(CROSS_COMPILE)size
 OBJCOPY = $(CROSS_COMPILE)objcopy
 GDB = $(CROSS_COMPILE)gdb
+
+armpath=/home/rt-2pm2/Extensions/gcc-arm-none-eabi-7-2017-q4-major
+
+INCLUDES += -I$(armpath)/arm-none-eabi/include
+INCLUDES += -I$(armpath)/lib/gcc/arm-none-eabi/9.2.1/include
 
 INCLUDES += -I$(FREERTOS)/include -I$(PORT) -I$(CRAZYFLIE_BASE)/src
 INCLUDES += -I$(CRAZYFLIE_BASE)/src/config -I$(CRAZYFLIE_BASE)/src/hal/interface -I$(CRAZYFLIE_BASE)/src/modules/interface
@@ -311,6 +316,10 @@ CFLAGS += -Wdouble-promotion
 ASFLAGS = $(PROCESSOR) $(INCLUDES)
 LDFLAGS = --specs=nosys.specs --specs=nano.specs $(PROCESSOR) -Wl,-Map=$(PROG).map,--cref,--gc-sections,--undefined=uxTopUsedPriority
 LDFLAGS += -L$(CRAZYFLIE_BASE)/tools/make/F405/linker
+
+LDFLAGS += -L$(armpath)/arm-none-eabi/lib/thumb/v7e-m+fp/hard/
+LDFLAGS += -L$(armpath)/lib/gcc/arm-none-eabi/9.2.1/thumb/v7e-m+fp/hard/
+LDFLAGS += -L/usr/local/lib/clang/10.0.0/lib/baremetal
 
 #Flags required by the ST library
 ifeq ($(CLOAD), 1)
