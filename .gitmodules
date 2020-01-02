@@ -14,3 +14,6 @@
 	path = vendor/FreeRTOS
 	url = https://github.com/FreeRTOS/FreeRTOS-Kernel
 	branch = V10.2.1-convergence-FreeRTOS-Source
+[submodule "vendor/CMSIS_5"]
+	path = vendor/CMSIS_5
+	url = https://github.com/ARM-software/CMSIS_5
