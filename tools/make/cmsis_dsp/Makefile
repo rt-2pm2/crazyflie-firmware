@@ -2,8 +2,8 @@ include obj.mk
 
 BIN=$(PROJ_ROOT)/bin/vendor
 PROJ_BIN=$(PROJ_ROOT)/bin
-DSP_SRC=$(CRAZYFLIE_BASE)/vendor/CMSIS/CMSIS/DSP_Lib/Source
-DSP_INC=$(CRAZYFLIE_BASE)/vendor/CMSIS/CMSIS/Include
+DSP_SRC=$(CRAZYFLIE_BASE)/vendor/CMSIS_5/CMSIS/DSP/Source
+DSP_INC=$(CRAZYFLIE_BASE)/vendor/CMSIS_5/CMSIS/DSP/Include
 
 VPATH += $(BIN)
 VPATH += $(DSP_SRC)/BasicMathFunctions/
@@ -21,13 +21,13 @@ VPATH += $(DSP_SRC)/TransformFunctions/
 LIB=$(PROJ_BIN)/libarm_math.a
 
 CSFLAGS = -O2 -I$(DSP_INC) -std=c11 -DARM_MATH_CM4 -D__FPU_PRESENT=1 -D__TARGET_FPU_VFP  -mfloat-abi=hard -mfpu=fpv4-sp-d16
-CSFLAGS += -mcpu=cortex-m4 -mthumb -ffunction-sections -fdata-sections
+CSFLAGS += -target=arm-none-eabi -mcpu=cortex-m4 -mthumb -ffunction-sections -fdata-sections
 CFLAGS=$(CSFLAGS) -include stdint.h
 
-CROSS_COMPILE     ?= arm-none-eabi-
+CROSS_COMPILE     ?= llvm- 
 AS = $(CROSS_COMPILE)as
-CC = $(CROSS_COMPILE)gcc
-LD = $(CROSS_COMPILE)gcc
+CC = clang 
+LD = clang 
 AR = $(CROSS_COMPILE)ar
 SIZE = $(CROSS_COMPILE)size
 OBJCOPY = $(CROSS_COMPILE)objcopy

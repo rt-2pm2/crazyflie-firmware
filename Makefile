@@ -51,6 +51,7 @@ FREERTOS = $(CRAZYFLIE_BASE)/vendor/FreeRTOS
 ############### CPU-specific build configuration ################
 
 ifeq ($(CPU), stm32f4)
+#PORT = $(FREERTOS)/portable/RVDS/ARM_CM4F
 PORT = $(FREERTOS)/portable/GCC/ARM_CM4F
 LINKER_DIR = $(CRAZYFLIE_BASE)/tools/make/F405/linker
 ST_OBJ_DIR  = $(CRAZYFLIE_BASE)/tools/make/F405
@@ -74,8 +75,11 @@ ST_OBJ += usb_core.o usb_dcd_int.o usb_dcd.o
 # USB Device obj
 ST_OBJ += usbd_ioreq.o usbd_req.o usbd_core.o
 
-PROCESSOR = --target=arm-none-eabi -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16
-CFLAGS += -fno-math-errno -DARM_MATH_CM4 -D__FPU_PRESENT=1 -D__TARGET_FPU_VFP #-mfp16-format=ieee
+PROCESSOR_LLVM = --target=arm-none-eabihf
+PROCESSOR = -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16
+CFLAGS += -fno-math-errno -DARM_MATH_CM4 -D__FPU_PRESENT=1 -D__TARGET_FPU_VFP 
+#CFLAGS += -mfp16-format=ieee
+CFLAGS += -fasm-blocks
 
 #Flags required by the ST library
 CFLAGS += -DSTM32F4XX -DSTM32F40_41xxx -DHSE_VALUE=8000000 -DUSE_STDPERIPH_DRIVER
@@ -256,11 +260,12 @@ PROJ_OBJ += libarm_math.a
 OBJ = $(FREERTOS_OBJ) $(PORT_OBJ) $(ST_OBJ) $(PROJ_OBJ) $(CRT0)
 
 ############### Compilation configuration ################
-AS = $(CROSS_COMPILE)as
+AS = arm-none-eabi-as 
 CC = clang 
-LD = clang
-SIZE = $(CROSS_COMPILE)size
-OBJCOPY = $(CROSS_COMPILE)objcopy
+LD = arm-none-eabi-gcc 
+
+SIZE = arm-none-eabi-size
+OBJCOPY = arm-none-eabi-objcopy
 GDB = $(CROSS_COMPILE)gdb
 
 armpath=/home/rt-2pm2/Extensions/gcc-arm-none-eabi-7-2017-q4-major
@@ -271,7 +276,7 @@ INCLUDES += -I$(armpath)/lib/gcc/arm-none-eabi/9.2.1/include
 INCLUDES += -I$(FREERTOS)/include -I$(PORT) -I$(CRAZYFLIE_BASE)/src
 INCLUDES += -I$(CRAZYFLIE_BASE)/src/config -I$(CRAZYFLIE_BASE)/src/hal/interface -I$(CRAZYFLIE_BASE)/src/modules/interface
 INCLUDES += -I$(CRAZYFLIE_BASE)/src/utils/interface -I$(CRAZYFLIE_BASE)/src/drivers/interface -I$(CRAZYFLIE_BASE)/src/platform
-INCLUDES += -I$(CRAZYFLIE_BASE)/vendor/CMSIS/CMSIS/Include -I$(CRAZYFLIE_BASE)/src/drivers/bosch/interface
+INCLUDES += -I$(CRAZYFLIE_BASE)/vendor/CMSIS_5/CMSIS/Core/Include -I$(CRAZYFLIE_BASE)/vendor/CMSIS_5/CMSIS/DSP/Include -I$(CRAZYFLIE_BASE)/src/drivers/bosch/interface
 
 INCLUDES += -I$(LIB)/STM32F4xx_StdPeriph_Driver/inc
 INCLUDES += -I$(LIB)/CMSIS/STM32F4xx/Include
@@ -292,7 +297,7 @@ ifeq ($(DEBUG), 1)
   CFLAGS += -Wconversion
 else
 	# Fail on warnings
-  CFLAGS += -Os -g3 -Werror
+  CFLAGS += -Os -g3 #-Werror
 endif
 
 ifeq ($(LTO), 1)
@@ -301,7 +306,7 @@ endif
 
 CFLAGS += -DBOARD_REV_$(REV) -DESTIMATOR_NAME=$(ESTIMATOR)Estimator -DCONTROLLER_NAME=ControllerType$(CONTROLLER) -DPOWER_DISTRIBUTION_TYPE_$(POWER_DISTRIBUTION)
 
-CFLAGS += $(PROCESSOR) $(INCLUDES)
+CFLAGS += $(PROCESSOR) $(PROCESSOR_LLVM) $(INCLUDES)
 
 
 CFLAGS += -Wall -Wmissing-braces -fno-strict-aliasing $(C_PROFILE) -std=gnu11

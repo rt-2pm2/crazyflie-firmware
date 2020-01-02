@@ -2,7 +2,8 @@
 # Copyright (c) 2009, Arnaud Taffanel
 # Common targets with verbose support
 
-
+#CC=arm-none-eabi-gcc
+#CC=
 ifeq ($(V),)
   VERBOSE=_SILENT
 endif
@@ -25,6 +26,8 @@ CC_COMMAND_SILENT="  CC    $@"
 .c.o:
 	@$(if $(QUIET), ,echo $(CC_COMMAND$(VERBOSE)) )
 	@$(CC_COMMAND)
+	$(CC) $(CFLAGS) -c -S -emit-llvm $< -o $(BIN)/llvm/$(@:.o=.bc)
+
 
 CCS_COMMAND=$(CC) $(CSFLAGS) -c $< -o $(BIN)/$@
 CCS_COMMAND_SILENT="  CCS   $@"
@@ -60,7 +63,7 @@ AS_COMMAND=$(AS) $(ASFLAGS) $< -o $(BIN)/$@
 AS_COMMAND_SILENT="  AS    $@"
 .s.o:
 	@$(if $(QUIET), ,echo $(AS_COMMAND$(VERBOSE)) )
-	@$(AS_COMMAND)
+	$(AS_COMMAND)
 
 CLEAN_O_COMMAND=rm -f $(foreach o,$(OBJ),$(BIN)/$(o))
 CLEAN_O_COMMAND_SILENT="  CLEAN_O"
