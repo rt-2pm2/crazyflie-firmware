@@ -51,6 +51,7 @@ typedef enum
   EXT_POSITION        = 0,
   GENERIC_TYPE        = 1,
   EXT_POSITION_PACKED = 2,
+  EXT_DISTANCE        = 3,
 } locsrvChannels_t;
 
 typedef struct
@@ -84,6 +85,8 @@ typedef struct {
 static positionMeasurement_t ext_pos;
 // Struct for logging pose information
 static poseMeasurement_t ext_pose;
+// Struct for loggin the information recevied about the anchors
+static distanceMeasurement_t ext_dist;
 
 static CRTPPacket pkRange;
 static uint8_t rangeIndex;
@@ -98,6 +101,7 @@ static void locSrvCrtpCB(CRTPPacket* pk);
 static void extPositionHandler(CRTPPacket* pk);
 static void genericLocHandle(CRTPPacket* pk);
 static void extPositionPackedHandler(CRTPPacket* pk);
+static void extDistanceHandler(CRTPPacket* pk);
 
 void locSrvInit()
 {
@@ -125,9 +129,32 @@ static void locSrvCrtpCB(CRTPPacket* pk)
     case EXT_POSITION_PACKED:
       extPositionPackedHandler(pk);
       break;
+    case EXT_DISTANCE:
+      extDistanceHandler(pk);
+      break;
     default:
       break;
   }
+}
+
+static void extDistanceHandler(CRTPPacket* pk) {
+	const struct CrtpExtDistance* data =
+		(const struct CrtpExtDistance*)pk->data;
+	
+	/* Read the distance information in the package, 
+	 * create a distanceMeasurement data structure and
+	 * enqueue the measurement in the respective filter 
+	 * queue.
+	 */
+	//data->id; // Id of the achor
+	ext_dist.x = data->x_anchor;
+	ext_dist.y = data->y_anchor;
+	ext_dist.z = data->z_anchor;
+
+	ext_dist.distance = data->dist;
+	ext_dist.stdDev = 0.25;
+
+	estimatorEnqueueDistance(&ext_dist);
 }
 
 static void extPositionHandler(CRTPPacket* pk)

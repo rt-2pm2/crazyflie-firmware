@@ -38,6 +38,15 @@ struct CrtpExtPosition
   float z; // in m
 } __attribute__((packed));
 
+struct CrtpExtDistance
+{
+	uint8_t id; // Id of the achor
+	float dist; // Distance from the anchor [m]
+	float x_anchor; // Coordinates of the anchor [m]
+	float y_anchor;
+	float z_anchor;
+} __attribute__((packed));
+
 struct CrtpExtPose
 {
   float x; // in m
