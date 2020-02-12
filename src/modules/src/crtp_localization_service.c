@@ -43,6 +43,7 @@
 #include "estimator.h"
 #include "quatcompress.h"
 
+#include "debug.h"
 #define NBR_OF_RANGES_IN_PACKET   5
 #define DEFAULT_EMERGENCY_STOP_TIMEOUT (1 * RATE_MAIN_LOOP)
 
@@ -152,8 +153,19 @@ static void extDistanceHandler(CRTPPacket* pk) {
 	ext_dist.z = data->z_anchor;
 
 	ext_dist.distance = data->dist;
-	ext_dist.stdDev = 0.25;
-
+	// Original = 0.25
+	ext_dist.stdDev = 0.10;
+/*
+	static uint32_t counter__ = 0; 
+	if (counter__++ == 121) {
+		DEBUG_PRINT("ID = %d \n", data->id);
+		DEBUG_PRINT("x = %3.2f \n", (double)data->x_anchor);
+		DEBUG_PRINT("y = %3.2f \n", (double)data->y_anchor);
+		DEBUG_PRINT("z = %3.2f \n", (double)data->z_anchor);
+		DEBUG_PRINT("ext_dist = %3.2f \n", (double)data->dist);
+		counter__ = 0;
+	}
+	*/
 	estimatorEnqueueDistance(&ext_dist);
 }
 
