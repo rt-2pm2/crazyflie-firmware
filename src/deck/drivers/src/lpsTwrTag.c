@@ -45,6 +45,8 @@
 #include "configblock.h"
 #include "lpsTdma.h"
 
+#include "param.h"
+
 #define ANTENNA_OFFSET 154.6   // In meter
 
 // Config
@@ -111,6 +113,9 @@ static uint8_t rangingSuccessRate[LOCODECK_NR_OF_TWR_ANCHORS];
 // Used to calculate above values
 static uint8_t succededRanging[LOCODECK_NR_OF_TWR_ANCHORS];
 static uint8_t failedRanging[LOCODECK_NR_OF_TWR_ANCHORS];
+
+// Enable distortion
+static bool enable_distortion = false;
 
 // Timestamps for ranging
 static dwTime_t poll_tx;
@@ -254,6 +259,13 @@ static uint32_t rxcallback(dwDevice_t *dev) {
           (diff < (OUTLIER_TH*stddev))) {
         distanceMeasurement_t dist;
         dist.distance = state.distance[current_anchor];
+
+	if (enable_distortion) {
+		if (current_anchor == 0 || current_anchor == 1) {
+			dist.distance += (float)3.0;
+		}
+	}
+
         dist.x = options->anchorPosition[current_anchor].x;
         dist.y = options->anchorPosition[current_anchor].y;
         dist.z = options->anchorPosition[current_anchor].z;
@@ -565,6 +577,10 @@ LOG_ADD(LOG_UINT8, rangingPerSec4, &rangingPerSec[4])
 LOG_ADD(LOG_UINT8, rangingSuccessRate5, &rangingSuccessRate[5])
 LOG_ADD(LOG_UINT8, rangingPerSec5, &rangingPerSec[5])
 LOG_GROUP_STOP(twr)
+
+PARAM_GROUP_START(twr)
+	PARAM_ADD(PARAM_UINT8, enable_distortion, &enable_distortion)
+PARAM_GROUP_STOP(twr)
 
 LOG_GROUP_START(ranging)
 #if (LOCODECK_NR_OF_TWR_ANCHORS > 0)
