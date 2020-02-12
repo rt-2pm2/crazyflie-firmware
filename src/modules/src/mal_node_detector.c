@@ -38,6 +38,8 @@
 #define DEBUG_MODULE "MNDETECTOR"
 #include "debug.h"
 
+#define Xind (0)
+#define Yind (1)
 
 // Distance-to-point measurements
 static xQueueHandle distDataQueue;
@@ -57,25 +59,16 @@ static StaticSemaphore_t dataMutexBuffer;
  * Constants used in the estimator
  */
 
-#define CRAZYFLIE_WEIGHT_grams (27.0f)
+#define CF_MASS (0.027f)
 
 //thrust is thrust mapped for 65536 <==> 60 GRAMS!
-#define CONTROL_TO_ACC (GRAVITY_MAGNITUDE*60.0f/CRAZYFLIE_WEIGHT_grams/65536.0f)
+#define CONTROL_TO_ACC (GRAVITY_MAGNITUDE*60.0f/(CF_MASS * 1000) /65536.0f)
 
 
 /**
  * Tuning parameters
  */
 #define PREDICT_RATE RATE_100_HZ // this is slower than the IMU update rate of 500Hz
-#define BARO_RATE RATE_25_HZ
-
-// the point at which the dynamics change from stationary to flying
-#define IN_FLIGHT_THRUST_THRESHOLD (GRAVITY_MAGNITUDE*0.1f)
-#define IN_FLIGHT_TIME_THRESHOLD (500)
-
-// The bounds on the covariance, these shouldn't be hit, but sometimes are... why?
-#define MAX_COVARIANCE (100)
-#define MIN_COVARIANCE (1e-6f)
 
 
 
@@ -143,37 +136,37 @@ STATIC_MEM_TASK_ALLOC(MND_Task, 2 * configMINIMAL_STACK_SIZE);
 
 
 static void initAnchorsPosition() {
-	MND_Data.AnchorPos[0][0] = 2.60;
-	MND_Data.AnchorPos[0][1] = -2.05;
-	MND_Data.AnchorPos[0][2] = 0.0;
+	MND_Data.APos[0][0] = 2.60;
+	MND_Data.APos[0][1] = -2.05;
+	MND_Data.APos[0][2] = 0.0;
 
-	MND_Data.AnchorPos[1][0] = -2.66;
-	MND_Data.AnchorPos[1][1] = -2.05;
-	MND_Data.AnchorPos[1][2] = 0.0;
+	MND_Data.APos[1][0] = -2.66;
+	MND_Data.APos[1][1] = -2.05;
+	MND_Data.APos[1][2] = 0.0;
 
-	MND_Data.AnchorPos[2][0] = -2.66;
-	MND_Data.AnchorPos[2][1] = 1.47;
-	MND_Data.AnchorPos[2][2] = 0.0;
+	MND_Data.APos[2][0] = -2.66;
+	MND_Data.APos[2][1] = 1.47;
+	MND_Data.APos[2][2] = 0.0;
 
-	MND_Data.AnchorPos[3][0] = 2.60;
-	MND_Data.AnchorPos[3][1] = 1.47;
-	MND_Data.AnchorPos[3][2] = 0.74;
+	MND_Data.APos[3][0] = 2.60;
+	MND_Data.APos[3][1] = 1.47;
+	MND_Data.APos[3][2] = 0.74;
 
-	MND_Data.AnchorPos[4][0] = -0.12;
-	MND_Data.AnchorPos[4][1] = -2.10;
-	MND_Data.AnchorPos[4][2] = 1.90;
+	MND_Data.APos[4][0] = -0.12;
+	MND_Data.APos[4][1] = -2.10;
+	MND_Data.APos[4][2] = 1.90;
 
-	MND_Data.AnchorPos[5][0] = 1.62;
-	MND_Data.AnchorPos[5][1] = -2.76;
-	MND_Data.AnchorPos[5][2] = 1.40;
+	MND_Data.APos[5][0] = 1.62;
+	MND_Data.APos[5][1] = -2.76;
+	MND_Data.APos[5][2] = 1.40;
 
-	MND_Data.AnchorPos[6][0] = -0.99;
-	MND_Data.AnchorPos[6][1] = 1.45;
-	MND_Data.AnchorPos[6][2] = 0.76;
+	MND_Data.APos[6][0] = -0.99;
+	MND_Data.APos[6][1] = 1.45;
+	MND_Data.APos[6][2] = 0.76;
 
-	MND_Data.AnchorPos[7][0] = -2.39;
-	MND_Data.AnchorPos[7][1] = 0;
-	MND_Data.AnchorPos[7][2] = 0.78;
+	MND_Data.APos[7][0] = -2.39;
+	MND_Data.APos[7][1] = 0;
+	MND_Data.APos[7][2] = 0.78;
 }
 
 // Called one time during system startup
@@ -201,13 +194,21 @@ static void MND_Task(void* parameters) {
 	while (true) {
 		xSemaphoreTake(runTaskSemaphore, portMAX_DELAY);
 
-		uint32_t osTick = xTaskGetTickCount();
-
 		float prep_meas1[11];
 		float prep_meas2[11];
 		float prep_meas3[11];
 		float prep_meas4[11];
 
+		float Thr = actuation.thrust;
+		float roll = actuation.roll;
+		float pitch = actuation.pitch;
+
+		float F[3];
+
+		uint32_t osTick = xTaskGetTickCount();
+
+		preprocessing_actuation(Thr, roll, pitch, F[3]);
+		
 		preprocessing(6, AnchorMeas, prep_meas1, z_drone); 
 		preprocessing(7, AnchorMeas, prep_meas2, z_drone);
 		preprocessing(6, AnchorMeas, prep_meas3, z_drone);
@@ -219,10 +220,10 @@ static void MND_Task(void* parameters) {
 		{
 			float O[4][4] = {{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0}};
 
-			O[0][0] = 2*(MND_Data.AnchorPos[i][0]-MND_Data.AnchorPos[6][0]);
-			O[0][2] = 2*(MND_Data.AnchorPos[i][1]-MND_Data.AnchorPos[6][1]);
-			O[1][0] = 2*(MND_Data.AnchorPos[i][0]-MND_Data.AnchorPos[7][0]);
-			O[1][2] = 2*(MND_Data.AnchorPos[i][1]-MND_Data.AnchorPos[7][1]);
+			O[0][0] = 2*(MND_Data.APos[i][0]-MND_Data.APos[6][0]);
+			O[0][2] = 2*(MND_Data.APos[i][1]-MND_Data.APos[6][1]);
+			O[1][0] = 2*(MND_Data.APos[i][0]-MND_Data.APos[7][0]);
+			O[1][2] = 2*(MND_Data.APos[i][1]-MND_Data.APos[7][1]);
 			O[2][0] = O[0][0];
 			O[2][2] = O[0][2]; 
 			O[3][0] = O[1][0];
@@ -238,9 +239,13 @@ static void MND_Task(void* parameters) {
 			float Y[4][1];
 			Y[0][0] = prep_meas1[i];
 			Y[1][0] = prep_meas2[i];
-			Y[2][0] = prep_meas3[i] - (MND_Data.AnchorPos[i][0]-MND_Data.AnchorPos[6][0])*prep_meas1[9]/weight - (MND_Data.AnchorPos[i][1]-MND_Data.AnchorPos[6][1])*prep_meas1[10]/weight;
+			Y[2][0] = prep_meas3[i] - 
+				(MND_Data.APos[i][0] - MND_Data.APos[6][0])*F1[Xind]/CF_MASS -
+				(MND_Data.APos[i][1] - MND_Data.APos[6][1])*F1[Yind]/CF_MASS;
 
-			Y[3][0] = prep_meas4[i] - (MND_Data.AnchorPos[i][0]-MND_Data.AnchorPos[7][0])*prep_meas2[9]/weight - (MND_Data.AnchorPos[i][1]-MND_Data.AnchorPos[7][1])*prep_meas2[10]/weight;
+			Y[3][0] = prep_meas4[i] -
+				(MND_Data.APos[i][0] - MND_Data.APos[7][0])*F2[Xind]/CF_MASS -
+				(MND_Data.APos[i][1] - MND_Data.APos[7][1])*F2[Yind]/CF_MASS;
 
 			float temp[4][1];
 			MatrixMultiVec(Q,Y,temp);
@@ -250,7 +255,7 @@ static void MND_Task(void* parameters) {
 			}
 		}
 
-		float W[4] = {100,1,100,1}; //weight matrix
+		float W[4] = {100,1,100,1}; //CF_MASS matrix
 		float voting[6];
 		int outcome[6];
 
@@ -260,11 +265,8 @@ static void MND_Task(void* parameters) {
 
 		rule(voting, outcome);
 			nextPrediction = osTick + S2T(1.0f / PREDICT_RATE);
-
 	
 		xSemaphoreTake(dataMutex, portMAX_DELAY);
-
-		kalmanCoreExternalizeState(&coreData, &taskEstimatorState, &accSnapshot, osTick);
 		xSemaphoreGive(dataMutex);
 
 		STATS_CNT_RATE_EVENT(&updateCounter);
@@ -272,6 +274,9 @@ static void MND_Task(void* parameters) {
 }
 
 
+/**
+ * Update the value of the anchor measurements
+ */
 void mn_detector_update_meas(
 		distanceMeasurement_t* dist,
 		uint8_t anchor_index,
@@ -322,20 +327,12 @@ void mn_detector_update_dyn(
 }
 
 static bool predictStateForward(uint32_t osTick, float dt) {
-	if (gyroAccumulatorCount == 0
-			|| accAccumulatorCount == 0
-			|| thrustAccumulatorCount == 0)
+	if (accAccumulatorCount == 0 || thrustAccumulatorCount == 0)
 	{
 		return false;
 	}
 
 	xSemaphoreTake(dataMutex, portMAX_DELAY);
-
-	// gyro is in deg/sec but the estimator requires rad/sec
-	Axis3f gyroAverage;
-	gyroAverage.x = gyroAccumulator.x * DEG_TO_RAD / gyroAccumulatorCount;
-	gyroAverage.y = gyroAccumulator.y * DEG_TO_RAD / gyroAccumulatorCount;
-	gyroAverage.z = gyroAccumulator.z * DEG_TO_RAD / gyroAccumulatorCount;
 
 	// accelerometer is in Gs but the estimator requires ms^-2
 	Axis3f accAverage;
@@ -348,21 +345,10 @@ static bool predictStateForward(uint32_t osTick, float dt) {
 
 	accAccumulator = (Axis3f){.axis={0}};
 	accAccumulatorCount = 0;
-	gyroAccumulator = (Axis3f){.axis={0}};
-	gyroAccumulatorCount = 0;
 	thrustAccumulator = 0;
 	thrustAccumulatorCount = 0;
 
 	xSemaphoreGive(dataMutex);
-
-	// TODO: Find a better check for whether the quad is flying
-	// Assume that the flight begins when the thrust is large enough and for now we never stop "flying".
-	if (thrustAverage > IN_FLIGHT_THRUST_THRESHOLD) {
-		lastFlightCmd = osTick;
-		if (!quadIsFlying) {
-			takeoffTime = lastFlightCmd;
-		}
-	}
 
 	return true;
 }
@@ -387,14 +373,10 @@ void MNDInit(void) {
 
 	xSemaphoreTake(dataMutex, portMAX_DELAY);
 	accAccumulator = (Axis3f){.axis={0}};
-	gyroAccumulator = (Axis3f){.axis={0}};
 	thrustAccumulator = 0;
-	baroAslAccumulator = 0;
 
 	accAccumulatorCount = 0;
-	gyroAccumulatorCount = 0;
 	thrustAccumulatorCount = 0;
-	baroAccumulatorCount = 0;
 	xSemaphoreGive(dataMutex);
 
 	kalmanCoreInit(&coreData);
@@ -439,6 +421,25 @@ bool estimatorKalmanTest(void)
 }
 
 
+void preprocessing_actuation(float T, float r, float p, 
+		float Fxyz[3]) {
+
+	// Scaling and drift removing
+	float T_n = T * scale; // Force in Newton
+	float p_ = p + drift1;
+	float r_ = r + drift2;  // correct scale and drift
+
+	// Convert to radiant
+	r_ = r_ * pi / 180;
+	p_ = p_ * pi / 180;
+
+	Fxyz[2] = T_n;
+	// Computing Fx and Fy
+	Fxyz[0] = -T_n * sin(p_);
+	Fxyz[1] = -T_n * cos(p_) * sin(r_);
+}
+
+
 /**
  * Preprocessing of the input
  */
@@ -461,17 +462,17 @@ void preprocessing(int num, const AnchorData[NUM_ANCHORS], float prep_meas[NUM_A
 
 	for (int i = 0; i < NUM_ANCHORS; i++) {
 		meas2_d[i] = meas2_d[i] +
-			pow(MND_Data.AnchorPos[i][0],2) + 
-			pow(MND_Data.AnchorPos[i][1],2) +
-			pow(MND_Data.AnchorPos[i][2],2);
+			pow(MND_Data.APos[i][0],2) + 
+			pow(MND_Data.APos[i][1],2) +
+			pow(MND_Data.APos[i][2],2);
 
 		meas2_d[i] = meas2_d[i] -
-			pow(MND_Data.AnchorPos[num][0],2) - 
-			pow(MND_Data.AnchorPos[num][1],2) - 
-			pow(MND_Data.AnchorPos[num][2],2);
+			pow(MND_Data.APos[num][0],2) - 
+			pow(MND_Data.APos[num][1],2) - 
+			pow(MND_Data.APos[num][2],2);
 
 		meas2_d[i] = meas2_d[i] - 
-			2*(MND_Data.AnchorPos[i][2] - MND_Data.AnchorPos[num][2])*z_drone;
+			2*(MND_Data.APos[i][2] - MND_Data.APos[num][2])*z_drone;
 
 		// Update the output data
 		prep_meas[i] = meas2_d[i];
