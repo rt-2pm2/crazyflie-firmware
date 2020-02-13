@@ -40,8 +40,8 @@ struct CrtpExtPosition
 
 struct CrtpExtDistance
 {
-	uint8_t id; // Id of the achor
 	float dist; // Distance from the anchor [m]
+	uint8_t id; // Id of the anchor
 	float x_anchor; // Coordinates of the anchor [m]
 	float y_anchor;
 	float z_anchor;
