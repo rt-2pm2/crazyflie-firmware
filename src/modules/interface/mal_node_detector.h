@@ -22,33 +22,31 @@
 
 #define NUM_ANCHORS (8)
 
-// Indexes to access the quad's state, stored as a column vector
-typedef enum
-{
-  STATE_X, STATE_Y, STATE_Z, KC_STATE_DIM
-} StateIdx_t;
 
-
-struct AnchorData {
+typedef struct {
 	distanceMeasurement_t data;
 	uint8_t id;
 	uint32_t tk_timestamp;
-};
+} anchor_data_t;
 
-struct ActuationData {
+typedef struct {
 	float T;
 	float roll;
 	float pitch;
-}
+} actuation_data_t;
+
+struct AlgorithmData {
+	actuation_data_t act_d;
+	anchor_data_t anch_d[NUM_ANCHORS];
+	uint32_t tk_timestamp;
+};
 
 // The data used by the algorithm.
 typedef struct {
-  /**
-   * The internally-estimated state is:
-   * - X, Y, Z: the quad's position in the global frame
-   */
-  float State[KC_STATE_DIM];
-
+	/**
+	 * The internally-estimated state is:
+	 * - X, Y, Z: the quad's position in the global frame
+	 */
 
 	/*
 	 * Anchor Position
@@ -60,9 +58,32 @@ typedef struct {
 	 */
 	float Reconstruct[4][6];
 
+	/*
+	 * Averages
+	 */
+	Axis3f accAverage;
+
+	float thrustAverage;
+
+	float rollAverage;
+	float pitchAverage;
+
 } InternalData_t;
 
+/**
+ * Initialization Function
+ */
+void MND_Init();
 
-void kalmanCoreInit(kalmanCoreData_t* this);
+
+void MND_update_dyn(state_t* state,
+		Axis3f* acc,
+		float thrust,
+		const uint32_t tick);
+
+void MND_update_meas(
+		distanceMeasurement_t* dist,
+		uint8_t anchor_index,
+		const uint32_t tick);
 
 #endif

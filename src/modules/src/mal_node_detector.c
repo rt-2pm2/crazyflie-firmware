@@ -33,18 +33,14 @@
 #include "param.h"
 #include "physicalConstants.h"
 
-#include "statsCnt.h"
 
 #define DEBUG_MODULE "MNDETECTOR"
+
 #include "debug.h"
 
 #define Xind (0)
 #define Yind (1)
-
-// Distance-to-point measurements
-static xQueueHandle distDataQueue;
-STATIC_MEM_QUEUE_ALLOC(distDataQueue, 10, sizeof(distanceMeasurement_t));
-
+#define DEG2RAD (3.14f / 180.0f)
 
 // Semaphore to signal that we got data from the stabilzer loop to process
 static SemaphoreHandle_t runTaskSemaphore;
@@ -55,10 +51,7 @@ static SemaphoreHandle_t dataMutex;
 static StaticSemaphore_t dataMutexBuffer;
 
 
-/**
- * Constants used in the estimator
- */
-
+// Vehicle Mass
 #define CF_MASS (0.027f)
 
 //thrust is thrust mapped for 65536 <==> 60 GRAMS!
@@ -66,24 +59,29 @@ static StaticSemaphore_t dataMutexBuffer;
 
 
 /**
- * Tuning parameters
+ * Task period in [ms]
  */
-#define PREDICT_RATE RATE_100_HZ // this is slower than the IMU update rate of 500Hz
+#define TASKPERIOD (30) 
 
+/*
+ * Variables Identifying the 2 good anchors
+ */
+static uint8_t base0 = 6;
+static uint8_t base1 = 7;
 
+static bool firstTime = true;
+
+static float curr_z = 0.0;
 
 /**
- * Quadrocopter State
- *
- * The internally-estimated state is:
- * - X, Y, Z:  position of the vehicle
- *
- * For more information, refer to the paper
+ * Algorithm Data Structure
  */
-static MND_Data_t MND_Data;
+static InternalData_t MND_Data;
+
 
 /**
  * Vector of distance measurements 
+ * Each element is a structure: 
  *
  *	typedef struct distanceMeasurement_s {
  *		union {
@@ -99,177 +97,148 @@ static MND_Data_t MND_Data;
  *	} distanceMeasurement_t;
  *
  */
-static AnchorData[8] AnchorMeas; 
+static anchor_data_t AnchorMeas[NUM_ANCHORS]; 
+static anchor_data_t AnchorMeasBuffer[2][NUM_ANCHORS] ;
+
+/*
+ * Actuation data and respective buffer
+ * The actuation is considere the Forces along x,y and z
+ */
+static float Actuation[3];
+static float ActuationBuffer[2][3];
 
 /**
  * Internal variables.
  */
-
 static bool isInit = false;
 
 static Axis3f accAccumulator;
-static float thrustAccumulator;
 static uint32_t accAccumulatorCount;
+
+static float thrustAccumulator;
 static uint32_t thrustAccumulatorCount;
 
-static bool quadIsFlying = false;
-static uint32_t lastFlightCmd;
-static uint32_t takeoffTime;
+static float rollAccumulator;
+static uint32_t rollAccumulatorCount;
 
-// Data used to enable the task and stabilizer loop to run with minimal locking
-static state_t taskEstimatorState; // The estimator state produced by the task, copied to the stabilzer when needed.
+static float pitchAccumulator;
+static uint32_t pitchAccumulatorCount;
 
-// Statistics
-#define ONE_SECOND 1000
-static STATS_CNT_RATE_DEFINE(updateCounter, ONE_SECOND);
+static uint32_t last_activation = 0;
 
-/**
- * Supporting and utility functions
- */
+static uint8_t outcome[6];
 
+// Index for the buffers
+static uint8_t curr_row = 0;
+
+
+// ===========================================================
+// ===========================================================
+
+
+// Internal Functions
 static void MND_Task(void* parameters);
-static bool updateQueuedMeasurments(const Axis3f *gyro, const uint32_t tick);
-
 STATIC_MEM_TASK_ALLOC(MND_Task, 2 * configMINIMAL_STACK_SIZE);
 
-// --------------------------------------------------
+static void initAnchorsPosition();
+static bool averaging();
+static int invertColumnMajor(float n[4][4], float invOut[4][4]);
+static void build_Q(float Q[4][4], int i, float delta);
+static void MatrixMultiVec( const float m[4][4], const float vec[4][1], float output[4][1]);
+static void preprocessing(int num, const anchor_data_t AnchorData[NUM_ANCHORS], float prep_meas[NUM_ANCHORS], float z_drone);
+static void prep_actuation(float T, float r, float p, float Fxyz[3]);
+static void rule(float voting[6], uint8_t outcome[6]);
 
 
-static void initAnchorsPosition() {
-	MND_Data.APos[0][0] = 2.60;
-	MND_Data.APos[0][1] = -2.05;
-	MND_Data.APos[0][2] = 0.0;
+// ===========================================================
 
-	MND_Data.APos[1][0] = -2.66;
-	MND_Data.APos[1][1] = -2.05;
-	MND_Data.APos[1][2] = 0.0;
 
-	MND_Data.APos[2][0] = -2.66;
-	MND_Data.APos[2][1] = 1.47;
-	MND_Data.APos[2][2] = 0.0;
-
-	MND_Data.APos[3][0] = 2.60;
-	MND_Data.APos[3][1] = 1.47;
-	MND_Data.APos[3][2] = 0.74;
-
-	MND_Data.APos[4][0] = -0.12;
-	MND_Data.APos[4][1] = -2.10;
-	MND_Data.APos[4][2] = 1.90;
-
-	MND_Data.APos[5][0] = 1.62;
-	MND_Data.APos[5][1] = -2.76;
-	MND_Data.APos[5][2] = 1.40;
-
-	MND_Data.APos[6][0] = -0.99;
-	MND_Data.APos[6][1] = 1.45;
-	MND_Data.APos[6][2] = 0.76;
-
-	MND_Data.APos[7][0] = -2.39;
-	MND_Data.APos[7][1] = 0;
-	MND_Data.APos[7][2] = 0.78;
-}
-
-// Called one time during system startup
-void MND_DetectionTaskInit() {
-	distDataQueue = STATIC_MEM_QUEUE_CREATE(distDataQueue);
-
-	vSemaphoreCreateBinary(runTaskSemaphore);
-	dataMutex = xSemaphoreCreateMutexStatic(&dataMutexBuffer);
-
-	STATIC_MEM_TASK_CREATE(MND_Task, MND_Task, MND_TASK_NAME, NULL, MND_TASK_PRI);
-
-	isInit = true;
-}
-
-bool MND_TaskTest() {
-	return isInit;
-}
 
 static void MND_Task(void* parameters) {
 	systemWaitStart();
 
-	uint32_t lastPrediction = xTaskGetTickCount();
-	uint32_t nextPrediction = xTaskGetTickCount();
+	uint32_t current_tick = xTaskGetTickCount();
+	uint32_t previous_tick = xTaskGetTickCount();
 
 	while (true) {
 		xSemaphoreTake(runTaskSemaphore, portMAX_DELAY);
 
-		float prep_meas1[11];
-		float prep_meas2[11];
-		float prep_meas3[11];
-		float prep_meas4[11];
+		// When the task is waken up it will save the 
+		// current status of the anchors and actuation.
 
-		float Thr = actuation.thrust;
-		float roll = actuation.roll;
-		float pitch = actuation.pitch;
+		// If there are at least two updates it can
+		// run the algorithm for detecting malicious nodes
 
-		float F[3];
+		xSemaphoreTake(dataMutex, portMAX_DELAY);	
+		if (firstTime) {
+			curr_row = 0;
+			firstTime = false;
+		} else {
+			curr_row = (curr_row + 1) % 2;
+		}
 
-		uint32_t osTick = xTaskGetTickCount();
+		memcpy(AnchorMeasBuffer[curr_row], AnchorMeas, sizeof(AnchorMeas));	
+		memcpy(ActuationBuffer[curr_row], Actuation, 3 * sizeof(float));
 
-		preprocessing_actuation(Thr, roll, pitch, F[3]);
-		
-		preprocessing(6, AnchorMeas, prep_meas1, z_drone); 
-		preprocessing(7, AnchorMeas, prep_meas2, z_drone);
-		preprocessing(6, AnchorMeas, prep_meas3, z_drone);
-		preprocessing(7, AnchorMeas, prep_meas4, z_drone);
+		if (!firstTime) {
+			// Allocate variables
+			float prep_meas1[NUM_ANCHORS];
+			float prep_meas2[NUM_ANCHORS];
+			float prep_meas3[NUM_ANCHORS];
+			float prep_meas4[NUM_ANCHORS];
 
-		float recons[4][6];  // used to store the reconstruct of each beacon
+			current_tick  = xTaskGetTickCount();
+			float delta = current_tick - previous_tick;
 
-		for (int i = 0; i<6; i++)
-		{
-			float O[4][4] = {{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0}};
+			// Processing the old measurement using the two bases
+			preprocessing(base0, AnchorMeasBuffer[(curr_row + 1) % 2], prep_meas1, curr_z); 
+			preprocessing(base1, AnchorMeasBuffer[(curr_row + 1) % 2], prep_meas2, curr_z);
 
-			O[0][0] = 2*(MND_Data.APos[i][0]-MND_Data.APos[6][0]);
-			O[0][2] = 2*(MND_Data.APos[i][1]-MND_Data.APos[6][1]);
-			O[1][0] = 2*(MND_Data.APos[i][0]-MND_Data.APos[7][0]);
-			O[1][2] = 2*(MND_Data.APos[i][1]-MND_Data.APos[7][1]);
-			O[2][0] = O[0][0];
-			O[2][2] = O[0][2]; 
-			O[3][0] = O[1][0];
-			O[3][2] = O[1][2];
-			O[2][1] = O[2][0]*delta;
-			O[2][3] = O[2][2]*delta;
-			O[3][1] = O[3][0]*delta;
-			O[3][3] = O[3][2]*delta;
+			// Processing the current measurement using the two bases
+			preprocessing(base0, AnchorMeasBuffer[curr_row], prep_meas3, curr_z);
+			preprocessing(base1, AnchorMeasBuffer[curr_row], prep_meas4, curr_z);
 
-			float Q[4][4];
-			invertColumnMajor(O,Q);
+			float recons[4][6];  // used to store the reconstruct of each beacon
 
-			float Y[4][1];
-			Y[0][0] = prep_meas1[i];
-			Y[1][0] = prep_meas2[i];
-			Y[2][0] = prep_meas3[i] - 
-				(MND_Data.APos[i][0] - MND_Data.APos[6][0])*F1[Xind]/CF_MASS -
-				(MND_Data.APos[i][1] - MND_Data.APos[6][1])*F1[Yind]/CF_MASS;
+			for (int i = 0; i<6; i++) {
+				float Y[4][1];
+				float Q[4][4];
+				float temp[4][1];
 
-			Y[3][0] = prep_meas4[i] -
-				(MND_Data.APos[i][0] - MND_Data.APos[7][0])*F2[Xind]/CF_MASS -
-				(MND_Data.APos[i][1] - MND_Data.APos[7][1])*F2[Yind]/CF_MASS;
+				build_Q(Q,i, delta);
 
-			float temp[4][1];
-			MatrixMultiVec(Q,Y,temp);
+				Y[0][0] = prep_meas1[i];
+				Y[1][0] = prep_meas2[i];
+				Y[2][0] = prep_meas3[i] - 
+					(MND_Data.APos[i][0] - MND_Data.APos[base0][0])*ActuationBuffer[(curr_row + 1) % 2][Xind]/CF_MASS -
+					(MND_Data.APos[i][1] - MND_Data.APos[base0][1])*ActuationBuffer[(curr_row + 1) % 2][Yind]/CF_MASS;
+				Y[3][0] = prep_meas4[i] -
+					(MND_Data.APos[i][0] - MND_Data.APos[base1][0])*ActuationBuffer[(curr_row + 1) % 2][Xind]/CF_MASS -
+					(MND_Data.APos[i][1] - MND_Data.APos[base1][1])*ActuationBuffer[(curr_row + 1) % 2][Yind]/CF_MASS;
 
-			for (int j=0; j<4; j++) {
-				recons[j][i] = temp[j][1];
+				MatrixMultiVec(Q,Y,temp);
+
+				for (int j=0; j<4; j++) {
+					recons[j][i] = temp[j][0];
+				}
 			}
-		}
 
-		float W[4] = {100,1,100,1}; //CF_MASS matrix
-		float voting[6];
-		int outcome[6];
+			float W[4] = {100,1,100,1}; //CF_MASS matrix
+			float voting[6];
 
-		for (int j = 0; j < 6; j++) {
-			voting[j] = W[0]*recons[0][j] + W[1]*recons[1][j] + W[2]*recons[2][j] + W[3]*recons[3][j];
-		}
+			for (int j = 0; j < 6; j++) {
+				voting[j] = W[0]*recons[0][j] +
+					W[1]*recons[1][j] +
+					W[2]*recons[2][j] +
+					W[3]*recons[3][j];
+			}
 
-		rule(voting, outcome);
-			nextPrediction = osTick + S2T(1.0f / PREDICT_RATE);
-	
-		xSemaphoreTake(dataMutex, portMAX_DELAY);
+			rule(voting, outcome);
+			//DEBUG_PRINT("%u | %u | %u \n", outcome[0], outcome[1], outcome[2]);
+		}	
+
 		xSemaphoreGive(dataMutex);
 
-		STATS_CNT_RATE_EVENT(&updateCounter);
 	}
 }
 
@@ -277,7 +246,7 @@ static void MND_Task(void* parameters) {
 /**
  * Update the value of the anchor measurements
  */
-void mn_detector_update_meas(
+void MND_update_meas(
 		distanceMeasurement_t* dist,
 		uint8_t anchor_index,
 		const uint32_t tick) {
@@ -292,41 +261,58 @@ void mn_detector_update_meas(
 	// Release the data mutex
 	xSemaphoreGive(dataMutex);
 
-	// Unlock the task
-	xSemaphoreGive(runTaskSemaphore);
 }
 
 /*
  * Feed new model data into the Malicious Node Detector
  */
-void mn_detector_update_dyn(
-		state_t *state,
-		sensorData_t *sensors,
-		control_t *control,
+void MND_update_dyn(
+		state_t* state,
+		Axis3f* acc,
+		float thrust,
 		const uint32_t tick) {
 
 	//Lock the data mutex
 	xSemaphoreTake(dataMutex, portMAX_DELAY);
 
-	// Average the last IMU measurements.
-	if (sensorsReadAcc(&sensors->acc)) {
-		accAccumulator.x += sensors->acc.x;
-		accAccumulator.y += sensors->acc.y;
-		accAccumulator.z += sensors->acc.z;
-		accAccumulatorCount++;
-	}
+	// Average Acceleration.
+	accAccumulator.x += acc->x;
+	accAccumulator.y += acc->y;
+	accAccumulator.z += acc->z;
+	accAccumulatorCount++;
 
-	// Make a copy of sensor data to be used by the task
-	memcpy(&accSnapshot, &sensors->acc, sizeof(accSnapshot));
+	// Averate Thrust
+	thrustAccumulator += thrust;
+	thrustAccumulatorCount++;
 
-	// Copy the latest state, calculated by the task
-	memcpy(state, &taskEstimatorState, sizeof(state_t));
+	// Average Roll and Pitch
+	// (I change the sign to the pitch to counteract the 
+	// weird Bitcraze convention)
+	rollAccumulator += state->attitude.roll;
+	rollAccumulatorCount++;
+	pitchAccumulator += -state->attitude.pitch;
+	pitchAccumulatorCount++;
+
+	curr_z = state->position.z;
+
 
 	// Unlock the data mutex
 	xSemaphoreGive(dataMutex);
+
+	// If a given amount of time is passed
+	// 	Unlock the task
+	if (tick - last_activation > TASKPERIOD) {
+		if (averaging()) { 
+			last_activation = tick;
+			xSemaphoreGive(runTaskSemaphore);
+		}
+	}
 }
 
-static bool predictStateForward(uint32_t osTick, float dt) {
+/**
+ * Average the last received data
+ */
+static bool averaging() {
 	if (accAccumulatorCount == 0 || thrustAccumulatorCount == 0)
 	{
 		return false;
@@ -334,19 +320,36 @@ static bool predictStateForward(uint32_t osTick, float dt) {
 
 	xSemaphoreTake(dataMutex, portMAX_DELAY);
 
-	// accelerometer is in Gs but the estimator requires ms^-2
-	Axis3f accAverage;
-	accAverage.x = accAccumulator.x * GRAVITY_MAGNITUDE / accAccumulatorCount;
-	accAverage.y = accAccumulator.y * GRAVITY_MAGNITUDE / accAccumulatorCount;
-	accAverage.z = accAccumulator.z * GRAVITY_MAGNITUDE / accAccumulatorCount;
+	// Gs -->  ms^-2
+	MND_Data.accAverage.x = accAccumulator.x * GRAVITY_MAGNITUDE / accAccumulatorCount;
+	MND_Data.accAverage.y = accAccumulator.y * GRAVITY_MAGNITUDE / accAccumulatorCount;
+	MND_Data.accAverage.z = accAccumulator.z * GRAVITY_MAGNITUDE / accAccumulatorCount;
 
-	// thrust is in grams, we need ms^-2
-	float thrustAverage = thrustAccumulator * CONTROL_TO_ACC / thrustAccumulatorCount;
+	// Grams --> ms^-2
+	MND_Data.thrustAverage = thrustAccumulator * CONTROL_TO_ACC / thrustAccumulatorCount;
 
+	MND_Data.rollAverage = rollAccumulator * DEG2RAD / rollAccumulatorCount;
+	MND_Data.pitchAverage = pitchAccumulator * DEG2RAD / pitchAccumulatorCount;
+
+	// Convert the Actuation data into a F_xyz
+	// The pitch should be inverted because of the weird bitcraze convention.
+	prep_actuation(MND_Data.thrustAverage,
+			MND_Data.rollAverage,
+			MND_Data.pitchAverage, 
+			Actuation);
+
+	// Reset the averaging variables
 	accAccumulator = (Axis3f){.axis={0}};
 	accAccumulatorCount = 0;
 	thrustAccumulator = 0;
 	thrustAccumulatorCount = 0;
+
+	rollAccumulator = 0;
+	rollAccumulatorCount = 0;
+
+	pitchAccumulator = 0;
+	pitchAccumulatorCount = 0;
+
 
 	xSemaphoreGive(dataMutex);
 
@@ -354,96 +357,26 @@ static bool predictStateForward(uint32_t osTick, float dt) {
 }
 
 
-static bool updateQueuedMeasurments(const Axis3f *gyro, const uint32_t tick) {
-	bool doneUpdate = false;
 
-	distanceMeasurement_t dist;
-	while (stateEstimatorHasDistanceMeasurement(&dist))
-	{
-		kalmanCoreUpdateWithDistance(&coreData, &dist);
-		doneUpdate = true;
-	}
-
-	return doneUpdate;
-}
-
-// Called when this estimator is activated
-void MNDInit(void) {
-	xQueueReset(distDataQueue);
-
-	xSemaphoreTake(dataMutex, portMAX_DELAY);
-	accAccumulator = (Axis3f){.axis={0}};
-	thrustAccumulator = 0;
-
-	accAccumulatorCount = 0;
-	thrustAccumulatorCount = 0;
-	xSemaphoreGive(dataMutex);
-
-	kalmanCoreInit(&coreData);
-}
-
-static bool appendMeasurement(xQueueHandle queue, void *measurement)
-{
-	portBASE_TYPE result;
-	bool isInInterrupt = (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk) != 0;
-
-	if (isInInterrupt) {
-		portBASE_TYPE xHigherPriorityTaskWoken = pdFALSE;
-		result = xQueueSendFromISR(queue, measurement, &xHigherPriorityTaskWoken);
-		if(xHigherPriorityTaskWoken == pdTRUE)
-		{
-			portYIELD();
-		}
-	} else {
-		result = xQueueSend(queue, measurement, 0);
-	}
-
-	if (result == pdTRUE) {
-		STATS_CNT_RATE_EVENT(&measurementAppendedCounter);
-		return true;
-	} else {
-		STATS_CNT_RATE_EVENT(&measurementNotAppendedCounter);
-		return true;
-	}
-}
-
-
-bool estimatorKalmanEnqueueDistance(const distanceMeasurement_t *dist)
-{
-	ASSERT(isInit);
-	return appendMeasurement(distDataQueue, (void *)dist);
-}
-
-
-bool estimatorKalmanTest(void)
-{
-	return isInit;
-}
-
-
-void preprocessing_actuation(float T, float r, float p, 
+void prep_actuation(float T, float r, float p, 
 		float Fxyz[3]) {
 
 	// Scaling and drift removing
-	float T_n = T * scale; // Force in Newton
-	float p_ = p + drift1;
-	float r_ = r + drift2;  // correct scale and drift
-
-	// Convert to radiant
-	r_ = r_ * pi / 180;
-	p_ = p_ * pi / 180;
+	float T_n = T; //  * scale; // Force in Newton
+	float p_ = p; // + drift1;
+	float r_ = r; // + drift2;  // correct scale and drift
 
 	Fxyz[2] = T_n;
 	// Computing Fx and Fy
-	Fxyz[0] = -T_n * sin(p_);
-	Fxyz[1] = -T_n * cos(p_) * sin(r_);
+	Fxyz[0] = T_n * sinf(p_);
+	Fxyz[1] = -T_n * cosf(p_) * sinf(r_);
 }
 
 
 /**
  * Preprocessing of the input
  */
-void preprocessing(int num, const AnchorData[NUM_ANCHORS], float prep_meas[NUM_ANCHORS], float z_drone){
+void preprocessing(int num, const anchor_data_t AnchorData[NUM_ANCHORS], float prep_meas[NUM_ANCHORS], float z_drone) {
 	// Temp variables
 	float meas2[NUM_ANCHORS];
 	float meas2_d[NUM_ANCHORS];
@@ -451,7 +384,7 @@ void preprocessing(int num, const AnchorData[NUM_ANCHORS], float prep_meas[NUM_A
 	// Square the distances from the anchors and put the 
 	// result in the temporary vector meas2
 	for (int i = 0; i < NUM_ANCHORS; i++) {
-		meas2[i] = pow(AnchorData[i].data.dist, 2);
+		meas2[i] = powf(AnchorData[i].data.distance, 2);
 	}
 
 	// Select the desired anchor
@@ -461,15 +394,15 @@ void preprocessing(int num, const AnchorData[NUM_ANCHORS], float prep_meas[NUM_A
 		meas2_d[i] = anchor - meas2[i];
 
 	for (int i = 0; i < NUM_ANCHORS; i++) {
-		meas2_d[i] = meas2_d[i] +
-			pow(MND_Data.APos[i][0],2) + 
-			pow(MND_Data.APos[i][1],2) +
-			pow(MND_Data.APos[i][2],2);
+		meas2_d[i] = meas2_d[i] + 
+			powf(MND_Data.APos[i][0],2) + 
+			powf(MND_Data.APos[i][1],2) + 
+			powf(MND_Data.APos[i][2],2);
 
-		meas2_d[i] = meas2_d[i] -
-			pow(MND_Data.APos[num][0],2) - 
-			pow(MND_Data.APos[num][1],2) - 
-			pow(MND_Data.APos[num][2],2);
+		meas2_d[i] = meas2_d[i] - 
+			powf(MND_Data.APos[num][0],2) - 
+			powf(MND_Data.APos[num][1],2) - 
+			powf(MND_Data.APos[num][2],2);
 
 		meas2_d[i] = meas2_d[i] - 
 			2*(MND_Data.APos[i][2] - MND_Data.APos[num][2])*z_drone;
@@ -480,12 +413,29 @@ void preprocessing(int num, const AnchorData[NUM_ANCHORS], float prep_meas[NUM_A
 
 }  
 
+void build_Q(float Q[4][4], int i, float delta) {
+
+	float O[4][4] = {{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0}};
+
+	O[0][0] = 2*(MND_Data.APos[i][0]-MND_Data.APos[base0][0]);
+	O[0][2] = 2*(MND_Data.APos[i][1]-MND_Data.APos[base0][1]);
+	O[1][0] = 2*(MND_Data.APos[i][0]-MND_Data.APos[base1][0]);
+	O[1][2] = 2*(MND_Data.APos[i][1]-MND_Data.APos[base1][1]);
+	O[2][0] = O[0][0];
+	O[2][2] = O[0][2]; 
+	O[3][0] = O[1][0];
+	O[3][2] = O[1][2];
+	O[2][1] = O[2][0]*delta;
+	O[2][3] = O[2][2]*delta;
+	O[3][1] = O[3][0]*delta;
+	O[3][3] = O[3][2]*delta;
+
+	invertColumnMajor(O,Q);
+}
+
 
 // This computes a 4*4 matrix multiply a 4*1 vector
-void MatrixMultiVec(
-		const float m[4][4],
-		const float vec[4][1],
-		float output[4][1]) {
+void MatrixMultiVec( const float m[4][4], const float vec[4][1], float output[4][1]) {
 	output[0][0] = m[0][0]*vec[0][0] + m[0][1]*vec[1][0] + m[0][2]*vec[2][0] + m[0][3]*vec[3][0];
 	output[1][0] = m[1][0]*vec[0][0] + m[1][1]*vec[1][0] + m[1][2]*vec[2][0] + m[1][3]*vec[3][0];
 	output[2][0] = m[2][0]*vec[0][0] + m[2][1]*vec[1][0] + m[2][2]*vec[2][0] + m[2][3]*vec[3][0];
@@ -493,8 +443,7 @@ void MatrixMultiVec(
 }
 
 // This is the invert of a 4*4 matrix
-int invertColumnMajor(float n[4][4], float invOut[4][4])
-{
+int invertColumnMajor(float n[4][4], float invOut[4][4]) {
 	float m[16] = {n[0][0],n[0][1],n[0][2],n[0][3],n[1][0],n[1][1],n[1][2],n[1][3],n[2][0],n[2][1],n[2][2],n[2][3],n[3][0],n[3][1],n[3][2],n[3][3]};
 
 	float inv[16], det;
@@ -534,24 +483,119 @@ int invertColumnMajor(float n[4][4], float invOut[4][4])
 	return 1;
 }
 
+void rule(float voting[6], uint8_t outcome[6]) //find out the guy that deviates the average most
+{
+	float sum = 0;
+	for (int i=0;i<6;i++) {
+		sum+=voting[i];
+	}
+	sum=sum/6;
+
+	for (int i=0;i<6;i++) {
+		voting[i]-=sum;
+		voting[i] = fabsf(voting[i]);
+	}
+
+	int flag = 1;
+	for (int i=0;i<6;i++) outcome[i] = i;
+	while (flag==1)
+	{
+		flag = 0;
+		for (int i=0;i<5;i++)
+		{
+			if (voting[i]<voting[i+1])
+			{
+				float a = voting[i], b = outcome[i];
+				voting[i] = voting [i+1]; outcome[i] = outcome[i+1];
+				voting[i+1] = a; outcome[i+1] = b;
+				flag = 1;
+			}
+		}
+	}
+}
+
+
+static void initAnchorsPosition() {
+	MND_Data.APos[0][0] = 2.60;
+	MND_Data.APos[0][1] = -2.05;
+	MND_Data.APos[0][2] = 0.0;
+
+	MND_Data.APos[1][0] = -2.66;
+	MND_Data.APos[1][1] = -2.05;
+	MND_Data.APos[1][2] = 0.0;
+
+	MND_Data.APos[2][0] = -2.66;
+	MND_Data.APos[2][1] = 1.47;
+	MND_Data.APos[2][2] = 0.0;
+
+	MND_Data.APos[3][0] = 2.60;
+	MND_Data.APos[3][1] = 1.47;
+	MND_Data.APos[3][2] = 0.74;
+
+	MND_Data.APos[4][0] = -0.12;
+	MND_Data.APos[4][1] = -2.10;
+	MND_Data.APos[4][2] = 1.90;
+
+	MND_Data.APos[5][0] = 1.62;
+	MND_Data.APos[5][1] = -2.76;
+	MND_Data.APos[5][2] = 1.40;
+
+	MND_Data.APos[6][0] = -0.99;
+	MND_Data.APos[6][1] = 1.45;
+	MND_Data.APos[6][2] = 0.76;
+
+	MND_Data.APos[7][0] = -2.39;
+	MND_Data.APos[7][1] = 0;
+	MND_Data.APos[7][2] = 0.78;
+}
+
+void MND_Init() {
+	// Initialize the semaphores
+	vSemaphoreCreateBinary(runTaskSemaphore);
+	dataMutex = xSemaphoreCreateMutexStatic(&dataMutexBuffer);
+
+	// Initialize the anchors positions
+	initAnchorsPosition();
+
+	// Initialize the variables related to 
+	// actuation.
+	accAccumulator = (Axis3f){.axis={0}};
+	accAccumulatorCount = 0;
+
+	thrustAccumulator = 0;
+	thrustAccumulatorCount = 0;
+
+	rollAccumulator = 0;
+	rollAccumulatorCount = 0;
+
+	pitchAccumulator = 0;
+	pitchAccumulatorCount = 0;
+
+	isInit = true;
+
+	STATIC_MEM_TASK_CREATE(
+			MND_Task,
+			MND_Task, MND_TASK_NAME,
+			NULL, MND_TASK_PRI);
+
+}
+
 
 // Temporary development groups
-LOG_GROUP_START(kalman_states)
-	LOG_ADD(LOG_FLOAT, ox, &coreData.S[KC_STATE_X])
-	LOG_ADD(LOG_FLOAT, oy, &coreData.S[KC_STATE_Y])
-	LOG_ADD(LOG_FLOAT, vx, &coreData.S[KC_STATE_PX])
-	LOG_ADD(LOG_FLOAT, vy, &coreData.S[KC_STATE_PY])
-LOG_GROUP_STOP(kalman_states)
+LOG_GROUP_START(mnd_log)
+	LOG_ADD(LOG_INT8, outcome0, &outcome[0])
+	LOG_ADD(LOG_INT8, outcome1, &outcome[1])
+	LOG_ADD(LOG_INT8, outcome2, &outcome[2])
+LOG_GROUP_STOP(mnd_log)
 
-	// Stock log groups
-LOG_GROUP_START(MalNodeDetect)
-	LOG_ADD(LOG_UINT8, inFlight, &quadIsFlying)
-	LOG_ADD(LOG_FLOAT, q3, &coreData.q[3])
+LOG_GROUP_START(mnd_dgb_log)
+	LOG_ADD(LOG_FLOAT, thrustAvg, &MND_Data.thrustAverage)
+	LOG_ADD(LOG_FLOAT, rollAvg, &MND_Data.rollAverage)
+	LOG_ADD(LOG_FLOAT, pitchAvg, &MND_Data.pitchAverage)
+LOG_GROUP_STOP(mnd_dbg_log)
 
-	STATS_CNT_RATE_LOG_ADD(rtUpdate, &updateCounter)
-LOG_GROUP_STOP(kalman)
 
-PARAM_GROUP_START(kalman)
-	PARAM_ADD(PARAM_UINT8, resetEstimation, &coreData.resetEstimation)
-	PARAM_ADD(PARAM_UINT8, quadIsFlying, &quadIsFlying)
-PARAM_GROUP_STOP(kalman)
+PARAM_GROUP_START(mnd_param)
+	PARAM_ADD(PARAM_UINT8, base0, &base0)
+	PARAM_ADD(PARAM_UINT8, base1, &base1)
+PARAM_GROUP_STOP(mnd_param)

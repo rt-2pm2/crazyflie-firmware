@@ -45,6 +45,7 @@
 #include "sitaw.h"
 #include "controller.h"
 #include "power_distribution.h"
+#include "mal_node_detector.h"
 
 #include "estimator.h"
 #include "usddeck.h"
@@ -282,6 +283,8 @@ static void stabilizerTask(void* param)
       controller(&control, &setpoint, &sensorData, &state, tick);
 
       checkEmergencyStopTimeout();
+
+      MND_update_dyn(&state, &sensorData.acc, control.thrust, tick);
 
       if (emergencyStop) {
         powerStop();

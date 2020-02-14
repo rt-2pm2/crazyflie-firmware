@@ -43,6 +43,8 @@
 #include "estimator.h"
 #include "quatcompress.h"
 
+#include "mal_node_detector.h"
+
 #include "debug.h"
 #define NBR_OF_RANGES_IN_PACKET   5
 #define DEFAULT_EMERGENCY_STOP_TIMEOUT (1 * RATE_MAIN_LOOP)
@@ -166,6 +168,8 @@ static void extDistanceHandler(CRTPPacket* pk) {
 		counter__ = 0;
 	}
 	*/
+ 
+	MND_update_meas(&ext_dist, data->id, 0);
 	estimatorEnqueueDistance(&ext_dist);
 }
 

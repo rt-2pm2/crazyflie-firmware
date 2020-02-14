@@ -66,6 +66,7 @@
 #include "extrx.h"
 #include "app.h"
 #include "static_mem.h"
+#include "mal_node_detector.h"
 
 /* Private variable */
 static bool selftestPassed;
@@ -182,6 +183,8 @@ void systemTask(void *arg)
 #ifdef PROXIMITY_ENABLED
   proximityInit();
 #endif
+
+  MND_Init();
 
   //Test the modules
   pass &= systemTest();
