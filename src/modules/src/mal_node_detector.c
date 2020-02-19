@@ -33,6 +33,7 @@
 #include "param.h"
 #include "physicalConstants.h"
 
+#include "estimator.h"
 
 #define DEBUG_MODULE "MNDETECTOR"
 
@@ -41,6 +42,8 @@
 #define Xind (0)
 #define Yind (1)
 #define DEG2RAD (3.14f / 180.0f)
+
+#define NUM_MAX_MALICIOUS (6)
 
 // Semaphore to signal that we got data from the stabilzer loop to process
 static SemaphoreHandle_t runTaskSemaphore;
@@ -72,6 +75,9 @@ static uint8_t base1 = 7;
 static bool firstTime = true;
 
 static float curr_z = 0.0;
+
+static float detection_threshold = 0.1;
+static bool attack_detected = false;
 
 /**
  * Algorithm Data Structure
@@ -125,11 +131,15 @@ static float pitchAccumulator;
 static uint32_t pitchAccumulatorCount;
 
 static uint32_t last_activation = 0;
+static uint8_t activated_mnd = false;
 
-static uint8_t outcome[6];
+static int8_t outcome[NUM_MAX_MALICIOUS];
 
 // Index for the buffers
 static uint8_t curr_row = 0;
+
+// Residuals for the detection
+static float residual[NUM_MAX_MALICIOUS];
 
 
 // ===========================================================
@@ -147,7 +157,7 @@ static void build_Q(float Q[4][4], int i, float delta);
 static void MatrixMultiVec( const float m[4][4], const float vec[4][1], float output[4][1]);
 static void preprocessing(int num, const anchor_data_t AnchorData[NUM_ANCHORS], float prep_meas[NUM_ANCHORS], float z_drone);
 static void prep_actuation(float T, float r, float p, float Fxyz[3]);
-static void rule(float voting[6], uint8_t outcome[6]);
+static bool rule(float residual[NUM_MAX_MALICIOUS], int8_t outcome[NUM_MAX_MALICIOUS]);
 
 
 // ===========================================================
@@ -198,9 +208,9 @@ static void MND_Task(void* parameters) {
 			preprocessing(base0, AnchorMeasBuffer[curr_row], prep_meas3, curr_z);
 			preprocessing(base1, AnchorMeasBuffer[curr_row], prep_meas4, curr_z);
 
-			float recons[4][6];  // used to store the reconstruct of each beacon
+			float recons[4][NUM_MAX_MALICIOUS];  // used to store the reconstruct of each beacon
 
-			for (int i = 0; i<6; i++) {
+			for (int i = 0; i<NUM_MAX_MALICIOUS; i++) {
 				float Y[4][1];
 				float Q[4][4];
 				float temp[4][1];
@@ -224,16 +234,16 @@ static void MND_Task(void* parameters) {
 			}
 
 			float W[4] = {100,1,100,1}; //CF_MASS matrix
-			float voting[6];
 
-			for (int j = 0; j < 6; j++) {
-				voting[j] = W[0]*recons[0][j] +
+			for (int j = 0; j < NUM_MAX_MALICIOUS; j++) {
+				residual[j] = W[0]*recons[0][j] +
 					W[1]*recons[1][j] +
 					W[2]*recons[2][j] +
 					W[3]*recons[3][j];
 			}
 
-			rule(voting, outcome);
+			attack_detected = rule(residual, outcome);
+
 			//DEBUG_PRINT("%u | %u | %u \n", outcome[0], outcome[1], outcome[2]);
 		}	
 
@@ -258,8 +268,21 @@ void MND_update_meas(
 	AnchorMeas[anchor_index].data = *dist;
 	AnchorMeas[anchor_index].tk_timestamp = tick;
 
+
+	// It's redundant, but I will clean it up later...
+	if (attack_detected && activated_mnd) {
+		// If an attack has been detected check before
+		// sending the distance information to the filter
+		if (anchor_index != outcome[0]) {
+			estimatorEnqueueDistance(dist);
+		}
+	} else {
+		estimatorEnqueueDistance(dist);
+	}
+			
 	// Release the data mutex
 	xSemaphoreGive(dataMutex);
+
 
 }
 
@@ -483,35 +506,64 @@ int invertColumnMajor(float n[4][4], float invOut[4][4]) {
 	return 1;
 }
 
-void rule(float voting[6], uint8_t outcome[6]) //find out the guy that deviates the average most
-{
+//find out the guy that deviates the average most
+bool rule(float residual[NUM_MAX_MALICIOUS], int8_t outcome[NUM_MAX_MALICIOUS]) {
 	float sum = 0;
-	for (int i=0;i<6;i++) {
-		sum+=voting[i];
-	}
-	sum=sum/6;
+	bool ordered = true;
+	float diff_residual;
+	bool detected = false;
 
-	for (int i=0;i<6;i++) {
-		voting[i]-=sum;
-		voting[i] = fabsf(voting[i]);
+	for (int i = 0; i < NUM_MAX_MALICIOUS; i++) {
+		sum += residual[i];
 	}
 
-	int flag = 1;
-	for (int i=0;i<6;i++) outcome[i] = i;
-	while (flag==1)
-	{
-		flag = 0;
-		for (int i=0;i<5;i++)
-		{
-			if (voting[i]<voting[i+1])
-			{
-				float a = voting[i], b = outcome[i];
-				voting[i] = voting [i+1]; outcome[i] = outcome[i+1];
-				voting[i+1] = a; outcome[i+1] = b;
-				flag = 1;
+	// Take the average of the comulative residual
+	sum = sum / NUM_MAX_MALICIOUS;
+
+	for (int i=0; i < NUM_MAX_MALICIOUS; i++) {
+		residual[i] -= sum;
+		residual[i] = fabsf(residual[i]);
+	}
+
+	for (int i = 0; i < NUM_MAX_MALICIOUS; i++) {
+			outcome[i] = i;
+	}
+
+	while (!ordered) {
+		ordered = true;
+		for (int i = 0; i < 5; i++) {
+			if (residual[i] < residual[i+1]) {
+				float a = residual[i];
+				float b = outcome[i];
+
+				residual[i] = residual [i+1];
+				outcome[i] = outcome[i+1];
+
+				residual[i+1] = a;
+				outcome[i+1] = b;
+
+				ordered = false;
 			}
 		}
 	}
+	
+	// Compute the difference between the first 2  residuals to understand 
+	// if there was actually an attack.
+	diff_residual = fabs(residual[0] - residual[1]);
+	if (diff_residual < detection_threshold) {
+		int i = 0;
+
+		// Reset the array to a definite value to indicate 
+		// that there was no malicious attack.
+		for (i = 0; i < NUM_MAX_MALICIOUS; i++) {
+			outcome[i] = -1;
+		}
+		detected = false;
+	} else {
+		detected = true;
+	}
+
+	return detected; 
 }
 
 
@@ -550,6 +602,8 @@ static void initAnchorsPosition() {
 }
 
 void MND_Init() {
+	int i;
+
 	// Initialize the semaphores
 	vSemaphoreCreateBinary(runTaskSemaphore);
 	dataMutex = xSemaphoreCreateMutexStatic(&dataMutexBuffer);
@@ -573,19 +627,23 @@ void MND_Init() {
 
 	isInit = true;
 
+	// Initialize the value of the outcomes
+	for (i = 0; i < NUM_MAX_MALICIOUS; i++) {
+		outcome[i] = -1;
+	}
+	
 	STATIC_MEM_TASK_CREATE(
 			MND_Task,
 			MND_Task, MND_TASK_NAME,
 			NULL, MND_TASK_PRI);
-
 }
 
 
 // Temporary development groups
 LOG_GROUP_START(mnd_log)
 	LOG_ADD(LOG_INT8, outcome0, &outcome[0])
-	LOG_ADD(LOG_INT8, outcome1, &outcome[1])
-	LOG_ADD(LOG_INT8, outcome2, &outcome[2])
+	LOG_ADD(LOG_FLOAT, residual0, &residual[0])
+	LOG_ADD(LOG_FLOAT, residual1, &residual[1])
 LOG_GROUP_STOP(mnd_log)
 
 LOG_GROUP_START(mnd_dgb_log)
@@ -594,8 +652,9 @@ LOG_GROUP_START(mnd_dgb_log)
 	LOG_ADD(LOG_FLOAT, pitchAvg, &MND_Data.pitchAverage)
 LOG_GROUP_STOP(mnd_dbg_log)
 
-
 PARAM_GROUP_START(mnd_param)
+	PARAM_ADD(PARAM_UINT8, activate, &activated_mnd)
 	PARAM_ADD(PARAM_UINT8, base0, &base0)
 	PARAM_ADD(PARAM_UINT8, base1, &base1)
+	PARAM_ADD(PARAM_FLOAT, threshold, &detection_threshold)
 PARAM_GROUP_STOP(mnd_param)

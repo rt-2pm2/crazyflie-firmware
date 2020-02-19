@@ -170,7 +170,7 @@ static void extDistanceHandler(CRTPPacket* pk) {
 	*/
  
 	MND_update_meas(&ext_dist, data->id, 0);
-	estimatorEnqueueDistance(&ext_dist);
+	//estimatorEnqueueDistance(&ext_dist);
 }
 
 static void extPositionHandler(CRTPPacket* pk)
