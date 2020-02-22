@@ -35,15 +35,19 @@
 
 #include "estimator.h"
 
-#define DEBUG_MODULE "MNDETECTOR"
+#define MODE_Y
 
 #include "debug.h"
 
 #define Xind (0)
 #define Yind (1)
+#define Zind (2)
 #define DEG2RAD (3.14f / 180.0f)
 
-#define NUM_MAX_MALICIOUS (6)
+#define NUM_MAX_MALICIOUS (5)
+#define NUM_MEAS (3)
+#define NUM_EQS (6)
+#define STATE_DIM (6)
 
 // Semaphore to signal that we got data from the stabilzer loop to process
 static SemaphoreHandle_t runTaskSemaphore;
@@ -64,17 +68,17 @@ static StaticSemaphore_t dataMutexBuffer;
 /**
  * Task period in [ms]
  */
-#define TASKPERIOD (30) 
+#define TASKPERIOD (100) 
 
 /*
  * Variables Identifying the 2 good anchors
  */
-static uint8_t base0 = 6;
-static uint8_t base1 = 7;
+static uint8_t base0 = 5;
+static uint8_t base1 = 6;
+static uint8_t base2 = 7;
 
 static bool firstTime = true;
-
-static float curr_z = 0.0;
+static bool updated_meas = false;
 
 static float detection_threshold = 0.1;
 static bool attack_detected = false;
@@ -106,12 +110,13 @@ static InternalData_t MND_Data;
 static anchor_data_t AnchorMeas[NUM_ANCHORS]; 
 static anchor_data_t AnchorMeasBuffer[2][NUM_ANCHORS] ;
 
+
 /*
  * Actuation data and respective buffer
  * The actuation is considere the Forces along x,y and z
  */
 static float Actuation[3];
-static float ActuationBuffer[2][3];
+static float UBuffer[2][3];
 
 /**
  * Internal variables.
@@ -136,10 +141,12 @@ static uint8_t activated_mnd = false;
 static int8_t outcome[NUM_MAX_MALICIOUS];
 
 // Index for the buffers
-static uint8_t curr_row = 0;
 
 // Residuals for the detection
 static float residual[NUM_MAX_MALICIOUS];
+
+// Estimate
+static float estimate[STATE_DIM];
 
 
 // ===========================================================
@@ -148,16 +155,16 @@ static float residual[NUM_MAX_MALICIOUS];
 
 // Internal Functions
 static void MND_Task(void* parameters);
-STATIC_MEM_TASK_ALLOC(MND_Task, 2 * configMINIMAL_STACK_SIZE);
+STATIC_MEM_TASK_ALLOC(MND_Task, 4 * configMINIMAL_STACK_SIZE);
 
 static void initAnchorsPosition();
 static bool averaging();
-static int invertColumnMajor(float n[4][4], float invOut[4][4]);
-static void build_Q(float Q[4][4], int i, float delta);
-static void MatrixMultiVec( const float m[4][4], const float vec[4][1], float output[4][1]);
-static void preprocessing(int num, const anchor_data_t AnchorData[NUM_ANCHORS], float prep_meas[NUM_ANCHORS], float z_drone);
+static void buildCMatrix(float CMat[NUM_MEAS][STATE_DIM], int i);
+static int buildInvObs(float InvObs[STATE_DIM][NUM_EQS], const float C[NUM_MEAS][STATE_DIM], int i, float delta);
+static void generate_b(int num, const anchor_data_t AnchorData[NUM_ANCHORS], float b_vect[NUM_ANCHORS]);
 static void prep_actuation(float T, float r, float p, float Fxyz[3]);
 static bool rule(float residual[NUM_MAX_MALICIOUS], int8_t outcome[NUM_MAX_MALICIOUS]);
+float square_norm(const float v[3]);
 
 
 // ===========================================================
@@ -170,83 +177,116 @@ static void MND_Task(void* parameters) {
 	uint32_t current_tick = xTaskGetTickCount();
 	uint32_t previous_tick = xTaskGetTickCount();
 
+	static int8_t curr_row = 0;
+
 	while (true) {
 		xSemaphoreTake(runTaskSemaphore, portMAX_DELAY);
 
-		// When the task is waken up it will save the 
-		// current status of the anchors and actuation.
-
-		// If there are at least two updates it can
-		// run the algorithm for detecting malicious nodes
-
 		xSemaphoreTake(dataMutex, portMAX_DELAY);	
-		if (firstTime) {
-			curr_row = 0;
-			firstTime = false;
-		} else {
-			curr_row = (curr_row + 1) % 2;
-		}
 
 		memcpy(AnchorMeasBuffer[curr_row], AnchorMeas, sizeof(AnchorMeas));	
-		memcpy(ActuationBuffer[curr_row], Actuation, 3 * sizeof(float));
+		memcpy(UBuffer[curr_row], Actuation, 3 * sizeof(float));		
 
-		if (!firstTime) {
+		if (firstTime || pdFALSE || !updated_meas) {
+			firstTime = false;
+			xSemaphoreGive(dataMutex);
+		} else { 
+			updated_meas = false;
 			// Allocate variables
-			float prep_meas1[NUM_ANCHORS];
-			float prep_meas2[NUM_ANCHORS];
-			float prep_meas3[NUM_ANCHORS];
-			float prep_meas4[NUM_ANCHORS];
+			float b_vect00[NUM_ANCHORS] = {0};
+			float b_vect01[NUM_ANCHORS] = {0};
+			float b_vect02[NUM_ANCHORS] = {0};
+
+			float b_vect10[NUM_ANCHORS] = {0};
+			float b_vect11[NUM_ANCHORS] = {0};
+			float b_vect12[NUM_ANCHORS] = {0};
 
 			current_tick  = xTaskGetTickCount();
-			float delta = current_tick - previous_tick;
+			float delta = T2S(current_tick - previous_tick);
 
-			// Processing the old measurement using the two bases
-			preprocessing(base0, AnchorMeasBuffer[(curr_row + 1) % 2], prep_meas1, curr_z); 
-			preprocessing(base1, AnchorMeasBuffer[(curr_row + 1) % 2], prep_meas2, curr_z);
+			if (delta > 0.0f) {
+				previous_tick = current_tick;
 
-			// Processing the current measurement using the two bases
-			preprocessing(base0, AnchorMeasBuffer[curr_row], prep_meas3, curr_z);
-			preprocessing(base1, AnchorMeasBuffer[curr_row], prep_meas4, curr_z);
+				// Generate measurements from the previous data
+				generate_b(base0, AnchorMeasBuffer[(curr_row + 1) % 2], b_vect00); 
+				generate_b(base1, AnchorMeasBuffer[(curr_row + 1) % 2], b_vect01);
+				generate_b(base2, AnchorMeasBuffer[(curr_row + 1) % 2], b_vect02);
 
-			float recons[4][NUM_MAX_MALICIOUS];  // used to store the reconstruct of each beacon
+				// Processing the current measurement
+				generate_b(base0, AnchorMeasBuffer[curr_row], b_vect10);
+				generate_b(base1, AnchorMeasBuffer[curr_row], b_vect11);
+				generate_b(base2, AnchorMeasBuffer[curr_row], b_vect12);
 
-			for (int i = 0; i<NUM_MAX_MALICIOUS; i++) {
-				float Y[4][1];
-				float Q[4][4];
-				float temp[4][1];
+				float recons[STATE_DIM][NUM_MAX_MALICIOUS] = {0};  // Used to store the reconstruct of each beacon
 
-				build_Q(Q,i, delta);
+				for (uint8_t i = 0; i < NUM_MAX_MALICIOUS; i++) {
 
-				Y[0][0] = prep_meas1[i];
-				Y[1][0] = prep_meas2[i];
-				Y[2][0] = prep_meas3[i] - 
-					(MND_Data.APos[i][0] - MND_Data.APos[base0][0])*ActuationBuffer[(curr_row + 1) % 2][Xind]/CF_MASS -
-					(MND_Data.APos[i][1] - MND_Data.APos[base0][1])*ActuationBuffer[(curr_row + 1) % 2][Yind]/CF_MASS;
-				Y[3][0] = prep_meas4[i] -
-					(MND_Data.APos[i][0] - MND_Data.APos[base1][0])*ActuationBuffer[(curr_row + 1) % 2][Xind]/CF_MASS -
-					(MND_Data.APos[i][1] - MND_Data.APos[base1][1])*ActuationBuffer[(curr_row + 1) % 2][Yind]/CF_MASS;
+					if (i == base0 || i == base1 || i == base2)
+						continue;
 
-				MatrixMultiVec(Q,Y,temp);
+					float Y[NUM_EQS];
+					float ObsInv[STATE_DIM][NUM_EQS];
+					float C[NUM_MEAS][STATE_DIM] = {0};	
 
-				for (int j=0; j<4; j++) {
-					recons[j][i] = temp[j][0];
+					float U[3] = {
+						0
+						/*
+						UBuffer[(curr_row + 1) % 2][Xind] / CF_MASS,
+						UBuffer[(curr_row + 1) % 2][Yind] / CF_MASS,
+						UBuffer[(curr_row + 1) % 2][Zind] / CF_MASS - GRAVITY_MAGNITUDE
+						*/
+					};
+
+					buildCMatrix(C, i);
+
+					float dt2_2 = delta * delta / 2.0f;
+					Y[0] = b_vect00[i] + C[0][0] * dt2_2 * U[Xind] + C[0][2] * dt2_2 * U[Yind] + C[0][4] * dt2_2 * U[Zind];
+					Y[1] = b_vect01[i] + C[1][0] * dt2_2 * U[Xind] + C[1][2] * dt2_2 * U[Yind] + C[1][4] * dt2_2 * U[Zind];
+					Y[2] = b_vect02[i] + C[2][0] * dt2_2 * U[Xind] + C[1][2] * dt2_2 * U[Yind] + C[2][4] * dt2_2 * U[Zind];
+
+					Y[3] = b_vect10[i];
+					Y[4] = b_vect11[i];
+					Y[5] = b_vect12[i];
+
+					buildInvObs(ObsInv, C, i, delta);
+
+					arm_matrix_instance_f32 ObsInv_;
+					arm_matrix_instance_f32 Y_;
+					arm_matrix_instance_f32 estimate_;
+
+					arm_mat_init_f32(&ObsInv_, NUM_EQS, NUM_EQS, (float *)&ObsInv[0][0]);
+					arm_mat_init_f32(&Y_, NUM_EQS, 1, Y);
+					arm_mat_init_f32(&estimate_, STATE_DIM, 1, estimate);
+
+					arm_status op_status = arm_mat_mult_f32(&ObsInv_, &Y_, &estimate_);
+
+					if (op_status != ARM_MATH_SUCCESS) {
+						DEBUG_PRINT("Error in matrix operation!\n");
+					}
+
+					for (int j = 0; j < STATE_DIM; j++) {
+						recons[j][i] = estimate[j];
+					}
 				}
+
+				float W[6] = {100,1,100,1,100,1};
+
+				//DEBUG_PRINT("[%2.2f %2.2f %2.2f \n", (double)recons[0][0], (double)recons[2][0], (double)recons[4][0]);
+				for (int j = 0; j < NUM_MAX_MALICIOUS; j++) {
+					residual[j] = 0;
+					for (int k = 0; k < STATE_DIM; k++) {
+						residual[j] += W[k] * recons[k][j];
+					}
+				}
+
+				attack_detected = rule(residual, outcome);
+			} else {
+				attack_detected = false;
 			}
-
-			float W[4] = {100,1,100,1}; //CF_MASS matrix
-
-			for (int j = 0; j < NUM_MAX_MALICIOUS; j++) {
-				residual[j] = W[0]*recons[0][j] +
-					W[1]*recons[1][j] +
-					W[2]*recons[2][j] +
-					W[3]*recons[3][j];
-			}
-
-			attack_detected = rule(residual, outcome);
-
 			//DEBUG_PRINT("%u | %u | %u \n", outcome[0], outcome[1], outcome[2]);
 		}	
 
+		curr_row = (curr_row + 1) % 2;
 		xSemaphoreGive(dataMutex);
 
 	}
@@ -263,6 +303,8 @@ void MND_update_meas(
 
 	//Lock the data mutex
 	xSemaphoreTake(dataMutex, portMAX_DELAY);
+
+	updated_meas = true;	
 
 	// Update anchors data
 	AnchorMeas[anchor_index].data = *dist;
@@ -315,9 +357,6 @@ void MND_update_dyn(
 	rollAccumulatorCount++;
 	pitchAccumulator += -state->attitude.pitch;
 	pitchAccumulatorCount++;
-
-	curr_z = state->position.z;
-
 
 	// Unlock the data mutex
 	xSemaphoreGive(dataMutex);
@@ -398,8 +437,13 @@ void prep_actuation(float T, float r, float p,
 
 /**
  * Preprocessing of the input
+ * Args:
+ * 	num: Index of the anchor used as a reference
+ * 	AnchorData: Array of distance measurements
+ * 	b_vect: Manipulated measurements
+ * 	A x = b
  */
-void preprocessing(int num, const anchor_data_t AnchorData[NUM_ANCHORS], float prep_meas[NUM_ANCHORS], float z_drone) {
+void generate_b(int num, const anchor_data_t AnchorData[NUM_ANCHORS], float b_vect[NUM_ANCHORS]) {
 	// Temp variables
 	float meas2[NUM_ANCHORS];
 	float meas2_d[NUM_ANCHORS];
@@ -407,109 +451,110 @@ void preprocessing(int num, const anchor_data_t AnchorData[NUM_ANCHORS], float p
 	// Square the distances from the anchors and put the 
 	// result in the temporary vector meas2
 	for (int i = 0; i < NUM_ANCHORS; i++) {
+		if (AnchorData[i].data.distance < 0.0f) {
+			DEBUG_PRINT("[%d] Reading negative distance!\n", i);
+		}
+
 		meas2[i] = powf(AnchorData[i].data.distance, 2);
+
+		if (meas2[i] < 0.0001f) {
+			DEBUG_PRINT("[%d] Reading 0 distance!: %2.1f \n", i, (double)AnchorData[i].data.distance);
+		}
 	}
 
-	// Select the desired anchor
+	// Select the reference anchor
 	float anchor = meas2[num];
 
-	for (int i = 0; i < NUM_ANCHORS; i++) 
-		meas2_d[i] = anchor - meas2[i];
-
 	for (int i = 0; i < NUM_ANCHORS; i++) {
-		meas2_d[i] = meas2_d[i] + 
-			powf(MND_Data.APos[i][0],2) + 
-			powf(MND_Data.APos[i][1],2) + 
-			powf(MND_Data.APos[i][2],2);
-
-		meas2_d[i] = meas2_d[i] - 
-			powf(MND_Data.APos[num][0],2) - 
-			powf(MND_Data.APos[num][1],2) - 
-			powf(MND_Data.APos[num][2],2);
-
-		meas2_d[i] = meas2_d[i] - 
-			2*(MND_Data.APos[i][2] - MND_Data.APos[num][2])*z_drone;
+		meas2_d[i] = anchor - meas2[i];
+		meas2_d[i] = meas2_d[i] + square_norm(MND_Data.APos[i]);
+		meas2_d[i] = meas2_d[i] - square_norm(MND_Data.APos[num]);
 
 		// Update the output data
-		prep_meas[i] = meas2_d[i];
+		b_vect[i] = meas2_d[i];
 	}
 
 }  
 
-void build_Q(float Q[4][4], int i, float delta) {
-
-	float O[4][4] = {{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0}};
-
-	O[0][0] = 2*(MND_Data.APos[i][0]-MND_Data.APos[base0][0]);
-	O[0][2] = 2*(MND_Data.APos[i][1]-MND_Data.APos[base0][1]);
-	O[1][0] = 2*(MND_Data.APos[i][0]-MND_Data.APos[base1][0]);
-	O[1][2] = 2*(MND_Data.APos[i][1]-MND_Data.APos[base1][1]);
-	O[2][0] = O[0][0];
-	O[2][2] = O[0][2]; 
-	O[3][0] = O[1][0];
-	O[3][2] = O[1][2];
-	O[2][1] = O[2][0]*delta;
-	O[2][3] = O[2][2]*delta;
-	O[3][1] = O[3][0]*delta;
-	O[3][3] = O[3][2]*delta;
-
-	invertColumnMajor(O,Q);
-}
 
 
-// This computes a 4*4 matrix multiply a 4*1 vector
-void MatrixMultiVec( const float m[4][4], const float vec[4][1], float output[4][1]) {
-	output[0][0] = m[0][0]*vec[0][0] + m[0][1]*vec[1][0] + m[0][2]*vec[2][0] + m[0][3]*vec[3][0];
-	output[1][0] = m[1][0]*vec[0][0] + m[1][1]*vec[1][0] + m[1][2]*vec[2][0] + m[1][3]*vec[3][0];
-	output[2][0] = m[2][0]*vec[0][0] + m[2][1]*vec[1][0] + m[2][2]*vec[2][0] + m[2][3]*vec[3][0];
-	output[3][0] = m[3][0]*vec[0][0] + m[3][1]*vec[1][0] + m[3][2]*vec[2][0] + m[3][3]*vec[3][0];
-}
+int buildInvObs(float InvObs[STATE_DIM][NUM_EQS], const float C[NUM_MEAS][STATE_DIM], int i, float delta) {
 
-// This is the invert of a 4*4 matrix
-int invertColumnMajor(float n[4][4], float invOut[4][4]) {
-	float m[16] = {n[0][0],n[0][1],n[0][2],n[0][3],n[1][0],n[1][1],n[1][2],n[1][3],n[2][0],n[2][1],n[2][2],n[2][3],n[3][0],n[3][1],n[3][2],n[3][3]};
+	float O[STATE_DIM * STATE_DIM] = {0.0f};
+	// C * Ab
+	O[0] = C[0][0];
+	O[1] = -delta * C[0][0];
+	O[2] = C[0][2];
+	O[3] = -delta * C[0][2];
+	O[4] = C[0][4];
+	O[5] = -delta * C[0][4];
+	
+	O[6+0] = C[1][0];
+	O[6+1] = -delta * C[1][0];
+	O[6+2] = C[1][2];
+	O[6+3] = -delta * C[1][2];
+	O[6+4] = C[1][4];
+	O[6+5] = -delta * C[1][4];
 
-	float inv[16], det;
-	int i,j;
+	O[12+0] = C[2][0];
+	O[12+1] = -delta * C[2][0];
+	O[12+2] = C[2][2];
+	O[12+3] = -delta * C[2][2];
+	O[12+4] = C[2][4];
+	O[12+5] = -delta * C[2][4];
+	
+	// C
+	O[18+0] = C[0][0];
+	O[18+2] = C[0][2];
+	O[18+4] = C[0][4];
+	
+	O[24+0] = C[1][0];
+	O[24+2] = C[1][2];
+	O[24+4] = C[1][4];
 
-	inv[ 0] =  m[5] * m[10] * m[15] - m[5] * m[11] * m[14] - m[9] * m[6] * m[15] + m[9] * m[7] * m[14] + m[13] * m[6] * m[11] - m[13] * m[7] * m[10];
-	inv[ 4] = -m[4] * m[10] * m[15] + m[4] * m[11] * m[14] + m[8] * m[6] * m[15] - m[8] * m[7] * m[14] - m[12] * m[6] * m[11] + m[12] * m[7] * m[10];
-	inv[ 8] =  m[4] * m[ 9] * m[15] - m[4] * m[11] * m[13] - m[8] * m[5] * m[15] + m[8] * m[7] * m[13] + m[12] * m[5] * m[11] - m[12] * m[7] * m[ 9];
-	inv[12] = -m[4] * m[ 9] * m[14] + m[4] * m[10] * m[13] + m[8] * m[5] * m[14] - m[8] * m[6] * m[13] - m[12] * m[5] * m[10] + m[12] * m[6] * m[ 9];
-	inv[ 1] = -m[1] * m[10] * m[15] + m[1] * m[11] * m[14] + m[9] * m[2] * m[15] - m[9] * m[3] * m[14] - m[13] * m[2] * m[11] + m[13] * m[3] * m[10];
-	inv[ 5] =  m[0] * m[10] * m[15] - m[0] * m[11] * m[14] - m[8] * m[2] * m[15] + m[8] * m[3] * m[14] + m[12] * m[2] * m[11] - m[12] * m[3] * m[10];
-	inv[ 9] = -m[0] * m[ 9] * m[15] + m[0] * m[11] * m[13] + m[8] * m[1] * m[15] - m[8] * m[3] * m[13] - m[12] * m[1] * m[11] + m[12] * m[3] * m[ 9];
-	inv[13] =  m[0] * m[ 9] * m[14] - m[0] * m[10] * m[13] - m[8] * m[1] * m[14] + m[8] * m[2] * m[13] + m[12] * m[1] * m[10] - m[12] * m[2] * m[ 9];
-	inv[ 2] =  m[1] * m[ 6] * m[15] - m[1] * m[ 7] * m[14] - m[5] * m[2] * m[15] + m[5] * m[3] * m[14] + m[13] * m[2] * m[ 7] - m[13] * m[3] * m[ 6];
-	inv[ 6] = -m[0] * m[ 6] * m[15] + m[0] * m[ 7] * m[14] + m[4] * m[2] * m[15] - m[4] * m[3] * m[14] - m[12] * m[2] * m[ 7] + m[12] * m[3] * m[ 6];
-	inv[10] =  m[0] * m[ 5] * m[15] - m[0] * m[ 7] * m[13] - m[4] * m[1] * m[15] + m[4] * m[3] * m[13] + m[12] * m[1] * m[ 7] - m[12] * m[3] * m[ 5];
-	inv[14] = -m[0] * m[ 5] * m[14] + m[0] * m[ 6] * m[13] + m[4] * m[1] * m[14] - m[4] * m[2] * m[13] - m[12] * m[1] * m[ 6] + m[12] * m[2] * m[ 5];
-	inv[ 3] = -m[1] * m[ 6] * m[11] + m[1] * m[ 7] * m[10] + m[5] * m[2] * m[11] - m[5] * m[3] * m[10] - m[ 9] * m[2] * m[ 7] + m[ 9] * m[3] * m[ 6];
-	inv[ 7] =  m[0] * m[ 6] * m[11] - m[0] * m[ 7] * m[10] - m[4] * m[2] * m[11] + m[4] * m[3] * m[10] + m[ 8] * m[2] * m[ 7] - m[ 8] * m[3] * m[ 6];
-	inv[11] = -m[0] * m[ 5] * m[11] + m[0] * m[ 7] * m[ 9] + m[4] * m[1] * m[11] - m[4] * m[3] * m[ 9] - m[ 8] * m[1] * m[ 7] + m[ 8] * m[3] * m[ 5];
-	inv[15] =  m[0] * m[ 5] * m[10] - m[0] * m[ 6] * m[ 9] - m[4] * m[1] * m[10] + m[4] * m[2] * m[ 9] + m[ 8] * m[1] * m[ 6] - m[ 8] * m[2] * m[ 5];
+	O[30+0] = C[2][0];
+	O[30+2] = C[2][2];
+	O[30+4] = C[2][4];
 
-	det = m[0] * inv[0] + m[1] * inv[4] + m[2] * inv[8] + m[3] * inv[12];
+	float Oc[STATE_DIM][STATE_DIM];
+	memcpy(&Oc[0][0], O, 36 * sizeof(float));
 
-	if(det == 0)
-		return 0;
+	arm_matrix_instance_f32 O_;
+	arm_matrix_instance_f32 Oc_;
+	arm_matrix_instance_f32 Oinv_;
+	
+	arm_mat_init_f32(&O_, STATE_DIM, STATE_DIM, O);
+	arm_mat_init_f32(&Oc_, STATE_DIM, STATE_DIM, (float *) &Oc[0][0]);
+	arm_mat_init_f32(&Oinv_, STATE_DIM, STATE_DIM, (float *) &InvObs[0][0]);
 
-	det = 1.f / det;
+	arm_status op_status = arm_mat_inverse_f32(&O_, &Oinv_);	
 
-	for (i = 0; i < 4; i++)
-	{
-		for (j = 0; j < 4; j++)
-		{
-			invOut[i][j] = inv[4*i+j] * det;
-		}
+	if (op_status != ARM_MATH_SUCCESS) {		
+		DEBUG_PRINT("[%2.2f %2.2f %2.2f \n", (double)Oc[0][0], (double)Oc[0][2], (double)Oc[0][4]);
+		DEBUG_PRINT("[%2.2f %2.2f %2.2f \n", (double)Oc[1][0], (double)Oc[1][2], (double)Oc[1][4]);
+		DEBUG_PRINT("[%2.2f %2.2f %2.2f \n", (double)Oc[2][0], (double)Oc[2][2], (double)Oc[2][4]);
+
+		DEBUG_PRINT("%2.2f %2.2f %2.2f ]\n", (double)Oc[0][1], (double)Oc[0][3], (double)Oc[0][5]);
+		DEBUG_PRINT("%2.2f %2.2f %2.2f ]\n", (double)Oc[1][1], (double)Oc[1][3], (double)Oc[1][5]);
+		DEBUG_PRINT("%2.2f %2.2f %2.2f ]\n", (double)Oc[2][1], (double)Oc[2][3], (double)Oc[2][5]);
+
+		//DEBUG_PRINT("Error in matrix inversion! [CODE = %d]\n", op_status);
+		//arm_mat_mult_f32(&Oc_, &Oinv_, &O_);
+		//DEBUG_PRINT("dt = %2.2f \n", (double)delta);
+		//DEBUG_PRINT("[%2.2f %2.2f %2.2f \n", (double)O[0], (double)O[1], (double)O[2]);
+		//DEBUG_PRINT("%2.2f %2.2f %2.2f  \n", (double)O[6], (double)O[7], (double)O[8]);
+		//DEBUG_PRINT("%2.2f %2.2f %2.2f ]\n", (double)O[12], (double)O[13], (double)O[14]);
+		return -1;
 	}
-	return 1;
+
+	return 0;
 }
+
 
 //find out the guy that deviates the average most
 bool rule(float residual[NUM_MAX_MALICIOUS], int8_t outcome[NUM_MAX_MALICIOUS]) {
 	float sum = 0;
-	bool ordered = true;
+	bool ordered = false;
 	float diff_residual;
 	bool detected = false;
 
@@ -531,7 +576,7 @@ bool rule(float residual[NUM_MAX_MALICIOUS], int8_t outcome[NUM_MAX_MALICIOUS]) 
 
 	while (!ordered) {
 		ordered = true;
-		for (int i = 0; i < 5; i++) {
+		for (int i = 0; i < NUM_MAX_MALICIOUS - 1; i++) {
 			if (residual[i] < residual[i+1]) {
 				float a = residual[i];
 				float b = outcome[i];
@@ -568,37 +613,53 @@ bool rule(float residual[NUM_MAX_MALICIOUS], int8_t outcome[NUM_MAX_MALICIOUS]) 
 
 
 static void initAnchorsPosition() {
-	MND_Data.APos[0][0] = 2.60;
-	MND_Data.APos[0][1] = -2.05;
-	MND_Data.APos[0][2] = 0.0;
+	MND_Data.APos[0][0] = 2.60f;
+	MND_Data.APos[0][1] = -2.05f;
+	MND_Data.APos[0][2] = 0.0f;
 
-	MND_Data.APos[1][0] = -2.66;
-	MND_Data.APos[1][1] = -2.05;
-	MND_Data.APos[1][2] = 0.0;
+	MND_Data.APos[1][0] = -2.66f;
+	MND_Data.APos[1][1] = -2.05f;
+	MND_Data.APos[1][2] = 0.0f;
 
-	MND_Data.APos[2][0] = -2.66;
-	MND_Data.APos[2][1] = 1.47;
-	MND_Data.APos[2][2] = 0.0;
+	MND_Data.APos[2][0] = -2.66f;
+	MND_Data.APos[2][1] = 1.47f;
+	MND_Data.APos[2][2] = 0.0f;
 
-	MND_Data.APos[3][0] = 2.60;
-	MND_Data.APos[3][1] = 1.47;
-	MND_Data.APos[3][2] = 0.74;
+	MND_Data.APos[3][0] = 2.60f;
+	MND_Data.APos[3][1] = 1.47f;
+	MND_Data.APos[3][2] = 0.74f;
 
-	MND_Data.APos[4][0] = -0.12;
-	MND_Data.APos[4][1] = -2.10;
-	MND_Data.APos[4][2] = 1.90;
+	MND_Data.APos[4][0] = -0.12f;
+	MND_Data.APos[4][1] = -2.10f;
+	MND_Data.APos[4][2] = 1.90f;
 
-	MND_Data.APos[5][0] = 1.62;
-	MND_Data.APos[5][1] = -2.76;
-	MND_Data.APos[5][2] = 1.40;
+	MND_Data.APos[5][0] = 1.62f;
+	MND_Data.APos[5][1] = -2.76f;
+	MND_Data.APos[5][2] = 1.40f;
 
-	MND_Data.APos[6][0] = -0.99;
-	MND_Data.APos[6][1] = 1.45;
-	MND_Data.APos[6][2] = 0.76;
+	MND_Data.APos[6][0] = -0.99f;
+	MND_Data.APos[6][1] = 1.45f;
+	MND_Data.APos[6][2] = 0.76f;
 
-	MND_Data.APos[7][0] = -2.39;
-	MND_Data.APos[7][1] = 0;
-	MND_Data.APos[7][2] = 0.78;
+	MND_Data.APos[7][0] = -2.39f;
+	MND_Data.APos[7][1] = 0.0f;
+	MND_Data.APos[7][2] = 0.78f;
+}
+
+static void buildCMatrix(float CMat[NUM_MEAS][STATE_DIM], int i) {
+	CMat[0][0] = 2.0f * (MND_Data.APos[i][Xind] - MND_Data.APos[base0][Xind]);
+	CMat[0][2] = 2.0f * (MND_Data.APos[i][Yind] - MND_Data.APos[base0][Yind]);
+	CMat[0][4] = 2.0f * (MND_Data.APos[i][Zind] - MND_Data.APos[base0][Zind]);
+	
+	CMat[1][0] = 2.0f * (MND_Data.APos[i][Xind] - MND_Data.APos[base1][Xind]);
+	CMat[1][2] = 2.0f * (MND_Data.APos[i][Yind] - MND_Data.APos[base1][Yind]);
+	CMat[1][4] = 2.0f * (MND_Data.APos[i][Zind] - MND_Data.APos[base1][Zind]);
+
+	CMat[2][0] = 2.0f * (MND_Data.APos[i][Xind] - MND_Data.APos[base2][Xind]);
+	CMat[2][2] = 2.0f * (MND_Data.APos[i][Yind] - MND_Data.APos[base2][Yind]);
+	CMat[2][4] = 2.0f * (MND_Data.APos[i][Zind] - MND_Data.APos[base2][Zind]);
+
+	return;
 }
 
 void MND_Init() {
@@ -627,6 +688,9 @@ void MND_Init() {
 
 	isInit = true;
 
+	// Initialize the C matrix
+
+
 	// Initialize the value of the outcomes
 	for (i = 0; i < NUM_MAX_MALICIOUS; i++) {
 		outcome[i] = -1;
@@ -638,6 +702,17 @@ void MND_Init() {
 			NULL, MND_TASK_PRI);
 }
 
+/**
+ * Helper function
+ */
+float square_norm(const float v[3]) {
+	float output;
+	output = powf(v[Xind], 2) +
+		powf(v[Yind], 2) +
+		powf(v[Zind], 2);
+
+	return output;
+}
 
 // Temporary development groups
 LOG_GROUP_START(mnd_log)
@@ -645,6 +720,12 @@ LOG_GROUP_START(mnd_log)
 	LOG_ADD(LOG_FLOAT, residual0, &residual[0])
 	LOG_ADD(LOG_FLOAT, residual1, &residual[1])
 LOG_GROUP_STOP(mnd_log)
+
+LOG_GROUP_START(mnd_est_log)
+	LOG_ADD(LOG_FLOAT, x_est, &estimate[0])
+	LOG_ADD(LOG_FLOAT, y_est, &estimate[2])
+	LOG_ADD(LOG_FLOAT, z_est, &estimate[4])
+LOG_GROUP_STOP(mnd_est_log)
 
 LOG_GROUP_START(mnd_dgb_log)
 	LOG_ADD(LOG_FLOAT, thrustAvg, &MND_Data.thrustAverage)
