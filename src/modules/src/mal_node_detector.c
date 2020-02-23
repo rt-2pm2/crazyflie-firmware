@@ -44,6 +44,7 @@
 #define Zind (2)
 #define DEG2RAD (3.14f / 180.0f)
 
+#define BUFF_LENGHT (2)
 #define NUM_MAX_MALICIOUS (5)
 #define NUM_MEAS (3)
 #define NUM_EQS (6)
@@ -80,7 +81,8 @@ static uint8_t base2 = 7;
 static bool firstTime = true;
 static bool updated_meas = false;
 
-static float detection_threshold = 0.2;
+static float rel_threshold = 0.3;
+static float abs_threshold = 5.0;
 static bool attack_detected = false;
 
 /**
@@ -108,7 +110,7 @@ static InternalData_t MND_Data;
  *
  */
 static anchor_data_t AnchorMeas[NUM_ANCHORS]; 
-static anchor_data_t AnchorMeasBuffer[2][NUM_ANCHORS] ;
+static anchor_data_t AnchorMeasBuffer[BUFF_LENGHT][NUM_ANCHORS] ;
 
 
 /*
@@ -116,7 +118,7 @@ static anchor_data_t AnchorMeasBuffer[2][NUM_ANCHORS] ;
  * The actuation is considere the Forces along x,y and z
  */
 static float Actuation[3];
-static float UBuffer[2][3];
+static float UBuffer[BUFF_LENGHT][3];
 
 /**
  * Internal variables.
@@ -161,14 +163,30 @@ static void initAnchorsPosition();
 static bool averaging();
 static void buildCMatrix(float CMat[NUM_MEAS][STATE_DIM], int i);
 static int buildInvObs(float InvObs[STATE_DIM][NUM_EQS], const float C[NUM_MEAS][STATE_DIM], int i, float delta);
-static void generate_b(int num, const anchor_data_t AnchorData[NUM_ANCHORS], float b_vect[NUM_ANCHORS]);
+static bool generate_b(int num, const anchor_data_t AnchorData[NUM_ANCHORS], float b_vect[NUM_ANCHORS]);
 static void prep_actuation(float T, float r, float p, float Fxyz[3]);
 static bool rule(float residual[NUM_MAX_MALICIOUS], int8_t outcome[NUM_MAX_MALICIOUS]);
 float square_norm(const float v[3]);
 
 
-// ===========================================================
 
+bool healty_sensor_data(anchor_data_t AnchorMeasBuffer[BUFF_LENGHT][NUM_ANCHORS]) {
+	bool output = true;
+	for (int k = 0; k < BUFF_LENGHT; k++) {
+		for (int i = 0; i < NUM_ANCHORS; i++) {
+			if (AnchorMeasBuffer[k][i].data.distance < 0.0001f) {
+				DEBUG_PRINT("[%d] Reading zero or negative distance!\n", i);
+				output = false;
+				return output;
+			}
+		}
+	}
+	return output;
+}
+
+
+
+// ===========================================================
 
 
 static void MND_Task(void* parameters) {
@@ -177,7 +195,8 @@ static void MND_Task(void* parameters) {
 	uint32_t current_tick = xTaskGetTickCount();
 	uint32_t previous_tick = xTaskGetTickCount();
 
-	static int8_t curr_row = 0;
+	int8_t curr_row = 0;
+	bool data_health = true;
 
 	while (true) {
 		xSemaphoreTake(runTaskSemaphore, portMAX_DELAY);
@@ -204,9 +223,11 @@ static void MND_Task(void* parameters) {
 			current_tick  = xTaskGetTickCount();
 			float delta = T2S(current_tick - previous_tick);
 
-			if (delta > 0.0f) {
-				previous_tick = current_tick;
+			data_health = healty_sensor_data(AnchorMeasBuffer);
 
+			if (delta > 0.0f && data_health) {
+				previous_tick = current_tick;
+				
 				// Generate measurements from the previous data
 				generate_b(base0, AnchorMeasBuffer[(curr_row + 1) % 2], b_vect00); 
 				generate_b(base1, AnchorMeasBuffer[(curr_row + 1) % 2], b_vect01);
@@ -216,6 +237,7 @@ static void MND_Task(void* parameters) {
 				generate_b(base0, AnchorMeasBuffer[curr_row], b_vect10);
 				generate_b(base1, AnchorMeasBuffer[curr_row], b_vect11);
 				generate_b(base2, AnchorMeasBuffer[curr_row], b_vect12);
+
 
 				float recons[STATE_DIM][NUM_MAX_MALICIOUS] = {0};  // Used to store the reconstruct of each beacon
 
@@ -229,12 +251,9 @@ static void MND_Task(void* parameters) {
 					float C[NUM_MEAS][STATE_DIM] = {0};	
 
 					float U[3] = {
-						0
-						/*
 						UBuffer[(curr_row + 1) % 2][Xind] / CF_MASS,
 						UBuffer[(curr_row + 1) % 2][Yind] / CF_MASS,
 						UBuffer[(curr_row + 1) % 2][Zind] / CF_MASS - GRAVITY_MAGNITUDE
-						*/
 					};
 
 					buildCMatrix(C, i);
@@ -280,10 +299,7 @@ static void MND_Task(void* parameters) {
 				}
 
 				attack_detected = rule(residual, outcome);
-			} else {
-				attack_detected = false;
 			}
-			//DEBUG_PRINT("%u | %u | %u \n", outcome[0], outcome[1], outcome[2]);
 		}	
 
 		curr_row = (curr_row + 1) % 2;
@@ -443,7 +459,7 @@ void prep_actuation(float T, float r, float p,
  * 	b_vect: Manipulated measurements
  * 	A x = b
  */
-void generate_b(int num, const anchor_data_t AnchorData[NUM_ANCHORS], float b_vect[NUM_ANCHORS]) {
+bool generate_b(int num, const anchor_data_t AnchorData[NUM_ANCHORS], float b_vect[NUM_ANCHORS]) {
 	// Temp variables
 	float meas2[NUM_ANCHORS];
 	float meas2_d[NUM_ANCHORS];
@@ -453,12 +469,14 @@ void generate_b(int num, const anchor_data_t AnchorData[NUM_ANCHORS], float b_ve
 	for (int i = 0; i < NUM_ANCHORS; i++) {
 		if (AnchorData[i].data.distance < 0.0f) {
 			DEBUG_PRINT("[%d] Reading negative distance!\n", i);
+			return false;
 		}
 
 		meas2[i] = powf(AnchorData[i].data.distance, 2);
 
 		if (meas2[i] < 0.0001f) {
 			DEBUG_PRINT("[%d] Reading 0 distance!: %2.1f \n", i, (double)AnchorData[i].data.distance);
+			return false;
 		}
 	}
 
@@ -473,7 +491,7 @@ void generate_b(int num, const anchor_data_t AnchorData[NUM_ANCHORS], float b_ve
 		// Update the output data
 		b_vect[i] = meas2_d[i];
 	}
-
+	return true;
 }  
 
 arm_status eval_pseudoinv(const arm_matrix_instance_f32* pMat, arm_matrix_instance_f32* Pseudo) {
@@ -604,8 +622,8 @@ bool rule(float residual[NUM_MAX_MALICIOUS], int8_t outcome[NUM_MAX_MALICIOUS]) 
 	
 	// Compute the difference between the first 2  residuals to understand 
 	// if there was actually an attack.
-	diff_residual = fabs(residual[0] - residual[1]);
-	if (diff_residual < detection_threshold) {
+	diff_residual = fabsf(residual[0] - residual[1]) / residual[0];
+	if (diff_residual < rel_threshold || residual[0] < abs_threshold) {
 		int i = 0;
 
 		// Reset the array to a definite value to indicate 
@@ -747,5 +765,7 @@ PARAM_GROUP_START(mnd_param)
 	PARAM_ADD(PARAM_UINT8, activate, &activated_mnd)
 	PARAM_ADD(PARAM_UINT8, base0, &base0)
 	PARAM_ADD(PARAM_UINT8, base1, &base1)
-	PARAM_ADD(PARAM_FLOAT, threshold, &detection_threshold)
+	PARAM_ADD(PARAM_UINT8, base2, &base2)
+	PARAM_ADD(PARAM_FLOAT, rel_threshold, &rel_threshold)
+	PARAM_ADD(PARAM_FLOAT, abs_threshold, &abs_threshold)
 PARAM_GROUP_STOP(mnd_param)
