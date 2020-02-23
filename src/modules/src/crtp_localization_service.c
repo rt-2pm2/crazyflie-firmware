@@ -156,7 +156,7 @@ static void extDistanceHandler(CRTPPacket* pk) {
 
 	ext_dist.distance = data->dist;
 	// Original = 0.25
-	ext_dist.stdDev = 0.10;
+	ext_dist.stdDev = 0.05;
 /*
 	static uint32_t counter__ = 0; 
 	if (counter__++ == 121) {
