@@ -68,7 +68,7 @@ static StaticSemaphore_t dataMutexBuffer;
 /**
  * Task period in [ms]
  */
-#define TASKPERIOD (100) 
+#define TASKPERIOD (50) 
 
 /*
  * Variables Identifying the 2 good anchors
@@ -80,7 +80,7 @@ static uint8_t base2 = 7;
 static bool firstTime = true;
 static bool updated_meas = false;
 
-static float detection_threshold = 0.1;
+static float detection_threshold = 0.2;
 static bool attack_detected = false;
 
 /**
@@ -476,11 +476,35 @@ void generate_b(int num, const anchor_data_t AnchorData[NUM_ANCHORS], float b_ve
 
 }  
 
+arm_status eval_pseudoinv(const arm_matrix_instance_f32* pMat, arm_matrix_instance_f32* Pseudo) {
+	arm_status op_status;
 
+	float TransMat[STATE_DIM * NUM_EQS];
+	arm_matrix_instance_f32 TransMat_arm = {STATE_DIM, STATE_DIM, TransMat};
+
+	// Temporary Mat 1
+	float TempNxNx[STATE_DIM * STATE_DIM];
+	arm_matrix_instance_f32 TempNxNx_arm = {STATE_DIM, STATE_DIM, TempNxNx};
+
+	// Temporary Mat 2
+	float TempNxNx2[STATE_DIM * STATE_DIM];
+	arm_matrix_instance_f32 TempNxNx2_arm = {STATE_DIM, STATE_DIM, TempNxNx2};
+
+
+	arm_mat_trans_f32(pMat, &TransMat_arm); // O'
+
+	arm_mat_mult_f32(&TransMat_arm, pMat, &TempNxNx_arm); // (O' x O)
+
+	op_status = arm_mat_inverse_f32(&TempNxNx_arm, &TempNxNx2_arm);
+
+	arm_mat_mult_f32(&TempNxNx2_arm, &TransMat_arm, Pseudo);  // (O' x O)^-1 x O' = Pseudo inverse 
+
+	return op_status;
+}
 
 int buildInvObs(float InvObs[STATE_DIM][NUM_EQS], const float C[NUM_MEAS][STATE_DIM], int i, float delta) {
 
-	float O[STATE_DIM * STATE_DIM] = {0.0f};
+	static float O[NUM_EQS * STATE_DIM] = {0.0f};
 	// C * Ab
 	O[0] = C[0][0];
 	O[1] = -delta * C[0][0];
@@ -516,34 +540,20 @@ int buildInvObs(float InvObs[STATE_DIM][NUM_EQS], const float C[NUM_MEAS][STATE_
 	O[30+2] = C[2][2];
 	O[30+4] = C[2][4];
 
-	float Oc[STATE_DIM][STATE_DIM];
-	memcpy(&Oc[0][0], O, 36 * sizeof(float));
-
 	arm_matrix_instance_f32 O_;
-	arm_matrix_instance_f32 Oc_;
 	arm_matrix_instance_f32 Oinv_;
-	
-	arm_mat_init_f32(&O_, STATE_DIM, STATE_DIM, O);
-	arm_mat_init_f32(&Oc_, STATE_DIM, STATE_DIM, (float *) &Oc[0][0]);
+	arm_mat_init_f32(&O_, STATE_DIM, STATE_DIM, (float32_t*)O);
 	arm_mat_init_f32(&Oinv_, STATE_DIM, STATE_DIM, (float *) &InvObs[0][0]);
 
-	arm_status op_status = arm_mat_inverse_f32(&O_, &Oinv_);	
+	// The standard inversion was problematic, thus I perform
+	// pseudo inversion which seems more numerically stable.
+	//arm_status op_status = arm_mat_inverse_f32(&O_, &Oinv_);		
+	arm_status op_status = eval_pseudoinv(&O_, &Oinv_);
 
 	if (op_status != ARM_MATH_SUCCESS) {		
-		DEBUG_PRINT("[%2.2f %2.2f %2.2f \n", (double)Oc[0][0], (double)Oc[0][2], (double)Oc[0][4]);
-		DEBUG_PRINT("[%2.2f %2.2f %2.2f \n", (double)Oc[1][0], (double)Oc[1][2], (double)Oc[1][4]);
-		DEBUG_PRINT("[%2.2f %2.2f %2.2f \n", (double)Oc[2][0], (double)Oc[2][2], (double)Oc[2][4]);
-
-		DEBUG_PRINT("%2.2f %2.2f %2.2f ]\n", (double)Oc[0][1], (double)Oc[0][3], (double)Oc[0][5]);
-		DEBUG_PRINT("%2.2f %2.2f %2.2f ]\n", (double)Oc[1][1], (double)Oc[1][3], (double)Oc[1][5]);
-		DEBUG_PRINT("%2.2f %2.2f %2.2f ]\n", (double)Oc[2][1], (double)Oc[2][3], (double)Oc[2][5]);
-
-		//DEBUG_PRINT("Error in matrix inversion! [CODE = %d]\n", op_status);
-		//arm_mat_mult_f32(&Oc_, &Oinv_, &O_);
-		//DEBUG_PRINT("dt = %2.2f \n", (double)delta);
-		//DEBUG_PRINT("[%2.2f %2.2f %2.2f \n", (double)O[0], (double)O[1], (double)O[2]);
-		//DEBUG_PRINT("%2.2f %2.2f %2.2f  \n", (double)O[6], (double)O[7], (double)O[8]);
-		//DEBUG_PRINT("%2.2f %2.2f %2.2f ]\n", (double)O[12], (double)O[13], (double)O[14]);
+		DEBUG_PRINT("Error in matrix inversion! [CODE = %d]\n", op_status);
+		DEBUG_PRINT("dt = %2.2f \n", (double)delta);
+	
 		return -1;
 	}
 
