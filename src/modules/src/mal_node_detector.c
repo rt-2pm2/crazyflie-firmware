@@ -82,7 +82,7 @@ static bool firstTime = true;
 static bool updated_meas = false;
 
 static float rel_threshold = 0.3;
-static float abs_threshold = 5.0;
+static float abs_threshold = 20.0;
 static bool attack_detected = false;
 
 /**
