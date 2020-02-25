@@ -82,7 +82,7 @@ static bool firstTime = true;
 static bool updated_meas = false;
 
 static float rel_threshold = 0.3;
-static float abs_threshold = 20.0;
+static float abs_threshold = 0.1;
 static bool attack_detected = false;
 
 /**
@@ -165,7 +165,8 @@ static void buildCMatrix(float CMat[NUM_MEAS][STATE_DIM], int i);
 static int buildInvObs(float InvObs[STATE_DIM][NUM_EQS], const float C[NUM_MEAS][STATE_DIM], int i, float delta);
 static bool generate_b(int num, const anchor_data_t AnchorData[NUM_ANCHORS], float b_vect[NUM_ANCHORS]);
 static void prep_actuation(float T, float r, float p, float Fxyz[3]);
-static bool rule(float residual[NUM_MAX_MALICIOUS], int8_t outcome[NUM_MAX_MALICIOUS]);
+//static bool rule(float residual[NUM_MAX_MALICIOUS], int8_t outcome[NUM_MAX_MALICIOUS]);
+static bool rule_vect(const float est[STATE_DIM][NUM_MAX_MALICIOUS], float v[NUM_MAX_MALICIOUS], int8_t outcome[NUM_MAX_MALICIOUS]);
 float square_norm(const float v[3]);
 
 
@@ -298,7 +299,8 @@ static void MND_Task(void* parameters) {
 					}
 				}
 
-				attack_detected = rule(residual, outcome);
+				//attack_detected = rule(residual, outcome);
+				attack_detected = rule_vect(recons, residual, outcome);
 			}
 		}	
 
@@ -579,7 +581,77 @@ int buildInvObs(float InvObs[STATE_DIM][NUM_EQS], const float C[NUM_MEAS][STATE_
 }
 
 
+bool rule_vect(const float est[STATE_DIM][NUM_MAX_MALICIOUS], float e_norm[NUM_MAX_MALICIOUS], int8_t outcome[NUM_MAX_MALICIOUS]) {
+	float p_avg[3] = {0};
+	//float e_norm[NUM_MAX_MALICIOUS] = {0};
+	int8_t o[NUM_MAX_MALICIOUS]; 
+	bool ordered = false;
+	bool detected = false;
+
+	for (int8_t i = 0; i < NUM_MAX_MALICIOUS; i++) {
+		o[i] = i;
+	}
+
+	for (int i = 0; i < 3; i++) {
+		for (int j = 0; j < NUM_MAX_MALICIOUS; j++) {
+			p_avg[i] += est[i * 2][j];
+		}
+		p_avg[i] /= NUM_MAX_MALICIOUS;
+	}
+	
+	for (int i = 0; i < NUM_MAX_MALICIOUS; i++) {
+		e_norm[i] = powf(est[0][i] - p_avg[0], 2) + powf(est[2][i] - p_avg[1], 2) + powf(est[4][i] - p_avg[2], 2);
+	}
+
+	/*
+	DEBUG_PRINT("avg = [%3.2f, %3.2f, %3.2f]\n", (double)p_avg[0], (double)p_avg[1], (double)p_avg[2]);
+	DEBUG_PRINT("0 [%3.2f, %3.2f, %3.2f]\n", (double)est[0][0], (double)est[2][0], (double)est[4][0]);
+	DEBUG_PRINT("1 [%3.2f, %3.2f, %3.2f]\n", (double)est[0][1], (double)est[2][1], (double)est[4][1]);
+	DEBUG_PRINT("2 [%3.2f, %3.2f, %3.2f]\n", (double)est[0][2], (double)est[2][2], (double)est[4][2]);
+	DEBUG_PRINT("err = [%3.2f, %3.2f, %3.2f]\n", (double)e_norm[0], (double)e_norm[1], (double)e_norm[2]);
+	*/
+	while (!ordered) {
+		ordered = true;
+		for (int i = 0; i < NUM_MAX_MALICIOUS - 1; i++) {
+			if (e_norm[i] < e_norm[i+1]) {
+				ordered = false;
+				float temp = e_norm[i];
+				int8_t temp_d = o[i];
+	
+				// Swapping
+				e_norm[i] = e_norm[i + 1];
+				o[i] = o[i + 1];
+
+				e_norm[i + 1] = temp;
+				o[i + 1] = temp_d;
+			}
+		}
+	}
+
+	// Compute the difference between the first 2  residuals to understand 
+	// if there was actually an attack.
+	//float diff_residual = fabsf(e_norm[0] - e_norm[1]) / e_norm[0];
+	if (e_norm[0] < abs_threshold) {
+
+		// Reset the array to a definite value to indicate 
+		// that there was no malicious attack.
+		for (int i = 0; i < NUM_MAX_MALICIOUS; i++) {
+			outcome[i] = -1;
+		}
+		detected = false;
+	} else {
+		for (int i = 0; i < NUM_MAX_MALICIOUS; i++) {
+			outcome[i] = o[i];
+		}
+		detected = true;
+	}
+
+	return detected;
+}
+
+
 //find out the guy that deviates the average most
+/*
 bool rule(float residual[NUM_MAX_MALICIOUS], int8_t outcome[NUM_MAX_MALICIOUS]) {
 	float sum = 0;
 	bool ordered = false;
@@ -638,7 +710,7 @@ bool rule(float residual[NUM_MAX_MALICIOUS], int8_t outcome[NUM_MAX_MALICIOUS]) 
 
 	return detected; 
 }
-
+*/
 
 static void initAnchorsPosition() {
 	MND_Data.APos[0][0] = 2.60f;
