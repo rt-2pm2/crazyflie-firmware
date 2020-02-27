@@ -85,6 +85,8 @@ static float rel_threshold = 0.3;
 static float abs_threshold = 0.1;
 static bool attack_detected = false;
 
+static uint8_t counter_thr = 3;
+
 /**
  * Algorithm Data Structure
  */
@@ -141,6 +143,7 @@ static uint32_t last_activation = 0;
 static uint8_t activated_mnd = false;
 
 static int8_t outcome[NUM_MAX_MALICIOUS];
+static uint8_t det_counters[NUM_MAX_MALICIOUS];
 
 // Index for the buffers
 
@@ -342,7 +345,6 @@ void MND_update_meas(
 			
 	// Release the data mutex
 	xSemaphoreGive(dataMutex);
-
 
 }
 
@@ -632,18 +634,29 @@ bool rule_vect(const float est[STATE_DIM][NUM_MAX_MALICIOUS], float e_norm[NUM_M
 	// if there was actually an attack.
 	//float diff_residual = fabsf(e_norm[0] - e_norm[1]) / e_norm[0];
 	if (e_norm[0] < abs_threshold) {
-
 		// Reset the array to a definite value to indicate 
 		// that there was no malicious attack.
 		for (int i = 0; i < NUM_MAX_MALICIOUS; i++) {
 			outcome[i] = -1;
+			det_counters[i] = 0;
 		}
 		detected = false;
 	} else {
 		for (int i = 0; i < NUM_MAX_MALICIOUS; i++) {
 			outcome[i] = o[i];
+			if (i > 0) {
+				// Reset the counter for the nodes that are not in the first position
+				det_counters[o[i]] = 0;
+			}
 		}
-		detected = true;
+
+		// Update the counter for the identified malicious node
+		det_counters[o[0]]++;
+
+		// If we got more that a given amount of detection trigger the alarm
+		if (det_counters[o[0]] > counter_thr) {
+			detected = true;
+		}
 	}
 
 	return detected;
@@ -817,6 +830,7 @@ float square_norm(const float v[3]) {
 // Temporary development groups
 LOG_GROUP_START(mnd_log)
 	LOG_ADD(LOG_INT8, outcome0, &outcome[0])
+	LOG_ADD(LOG_UINT8, enable, &activated_mnd)
 	LOG_ADD(LOG_FLOAT, residual0, &residual[0])
 	LOG_ADD(LOG_FLOAT, residual1, &residual[1])
 LOG_GROUP_STOP(mnd_log)
@@ -827,11 +841,13 @@ LOG_GROUP_START(mnd_est_log)
 	LOG_ADD(LOG_FLOAT, z_est, &estimate[4])
 LOG_GROUP_STOP(mnd_est_log)
 
+/*
 LOG_GROUP_START(mnd_dgb_log)
 	LOG_ADD(LOG_FLOAT, thrustAvg, &MND_Data.thrustAverage)
 	LOG_ADD(LOG_FLOAT, rollAvg, &MND_Data.rollAverage)
 	LOG_ADD(LOG_FLOAT, pitchAvg, &MND_Data.pitchAverage)
 LOG_GROUP_STOP(mnd_dbg_log)
+*/
 
 PARAM_GROUP_START(mnd_param)
 	PARAM_ADD(PARAM_UINT8, activate, &activated_mnd)
@@ -840,4 +856,5 @@ PARAM_GROUP_START(mnd_param)
 	PARAM_ADD(PARAM_UINT8, base2, &base2)
 	PARAM_ADD(PARAM_FLOAT, rel_threshold, &rel_threshold)
 	PARAM_ADD(PARAM_FLOAT, abs_threshold, &abs_threshold)
+	PARAM_ADD(PARAM_UINT8, det_counter, &counter_thr)
 PARAM_GROUP_STOP(mnd_param)
