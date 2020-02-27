@@ -46,6 +46,7 @@
 #include "lpsTdma.h"
 
 #include "param.h"
+#include "mal_node_detector.h"
 
 #define ANTENNA_OFFSET 154.6   // In meter
 
@@ -115,7 +116,9 @@ static uint8_t succededRanging[LOCODECK_NR_OF_TWR_ANCHORS];
 static uint8_t failedRanging[LOCODECK_NR_OF_TWR_ANCHORS];
 
 // Enable distortion
-static bool enable_distortion = false;
+static uint8_t distortion_enabled = 0;
+static uint8_t mal_id = 0;
+static float dist_size = 0.4;
 
 // Timestamps for ranging
 static dwTime_t poll_tx;
@@ -260,9 +263,9 @@ static uint32_t rxcallback(dwDevice_t *dev) {
         distanceMeasurement_t dist;
         dist.distance = state.distance[current_anchor];
 
-	if (enable_distortion) {
-		if (current_anchor == 0 || current_anchor == 1) {
-			dist.distance += (float)3.0;
+	if (distortion_enabled) {
+		if (current_anchor == mal_id) {
+			dist.distance += (float)dist_size;
 		}
 	}
 
@@ -270,7 +273,8 @@ static uint32_t rxcallback(dwDevice_t *dev) {
         dist.y = options->anchorPosition[current_anchor].y;
         dist.z = options->anchorPosition[current_anchor].z;
         dist.stdDev = 0.25;
-        estimatorEnqueueDistance(&dist);
+	MND_update_meas(&dist, current_anchor, 0);
+        //estimatorEnqueueDistance(&dist);
       }
 
       if (options->useTdma && current_anchor == 0) {
@@ -579,10 +583,15 @@ LOG_ADD(LOG_UINT8, rangingPerSec5, &rangingPerSec[5])
 LOG_GROUP_STOP(twr)
 
 PARAM_GROUP_START(twr)
-	PARAM_ADD(PARAM_UINT8, enable_distortion, &enable_distortion)
+	PARAM_ADD(PARAM_UINT8, enable_distortion, &distortion_enabled)
+	PARAM_ADD(PARAM_UINT8, malicious_id, &mal_id)
+	PARAM_ADD(PARAM_FLOAT, dist_amount, &dist_size)
 PARAM_GROUP_STOP(twr)
 
+
 LOG_GROUP_START(ranging)
+	LOG_ADD(LOG_UINT8, dist_enabled, &distortion_enabled)
+/*
 #if (LOCODECK_NR_OF_TWR_ANCHORS > 0)
 LOG_ADD(LOG_FLOAT, distance0, &state.distance[0])
 #endif
@@ -631,4 +640,5 @@ LOG_ADD(LOG_FLOAT, pressure6, &state.pressures[6])
 #if (LOCODECK_NR_OF_TWR_ANCHORS > 7)
 LOG_ADD(LOG_FLOAT, pressure7, &state.pressures[7])
 #endif
+*/
 LOG_GROUP_STOP(ranging)
