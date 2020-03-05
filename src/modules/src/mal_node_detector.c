@@ -85,7 +85,7 @@ static float rel_threshold = 0.3;
 static float abs_threshold = 0.1;
 static bool attack_detected = false;
 
-static uint8_t counter_thr = 3;
+static uint8_t counter_thr = 5;
 
 /**
  * Algorithm Data Structure
@@ -637,10 +637,16 @@ bool rule_vect(const float est[STATE_DIM][NUM_MAX_MALICIOUS], float e_norm[NUM_M
 		// Reset the array to a definite value to indicate 
 		// that there was no malicious attack.
 		for (int i = 0; i < NUM_MAX_MALICIOUS; i++) {
-			outcome[i] = -1;
-			det_counters[i] = 0;
+			det_counters[o[i]]--;
+			if (det_counters[o[i]] <= 0) {
+				outcome[i] = -1;
+				det_counters[o[i]] = 0;
+			}
 		}
-		detected = false;
+
+		if (det_counters[o[0]] == 0) {
+			detected = false;
+		}
 	} else {
 		for (int i = 0; i < NUM_MAX_MALICIOUS; i++) {
 			outcome[i] = o[i];
@@ -654,8 +660,9 @@ bool rule_vect(const float est[STATE_DIM][NUM_MAX_MALICIOUS], float e_norm[NUM_M
 		det_counters[o[0]]++;
 
 		// If we got more that a given amount of detection trigger the alarm
-		if (det_counters[o[0]] > counter_thr) {
+		if (det_counters[o[0]] >= counter_thr) {
 			detected = true;
+			det_counters[o[0]] = counter_thr;
 		}
 	}
 
