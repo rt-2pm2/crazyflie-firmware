@@ -218,6 +218,14 @@ void DDParamEstimator2D_Step(DDParamEstimator2D* pe,
 	}
 }
 
+void DDParamEstimator2D_SetGains(DDParamEstimator2D* pe,
+		const float gains[DDESTPAR_GAINS2DSIZE]) {
+	int i = 0;
+	for (i = 0; i < DDESTPAR_GAINS2DSIZE; i++) {
+		pe->est_gains[i] = gains[i];
+	}
+}
+
 void DDParamEstimator2D_GetParams(DDParamEstimator2D* pe,
 		float alpha[DDESTPAR_ALPHA2DSIZE],
 		float beta[DDESTPAR_BETA2DSIZE]) {
@@ -327,6 +335,16 @@ void DDParamEstimator_Step(DDParamEstimator* pe, state_t* ps,
 		DEBUG_PRINT("Param Estimator not initialized!");
 		DDParamEstimator_Init(pe);
 	}
+}
+
+void DDParamEstimator_SetGains(DDParamEstimator* pe,
+		float gains_x[2], float gains_y[2],
+		float gains_2d[DDESTPAR_GAINS2DSIZE]) {
+
+	DDParamEstimator1D_SetGains(&pe->paramest1D[0], gains_x);
+	DDParamEstimator1D_SetGains(&pe->paramest1D[1], gains_y);
+
+	DDParamEstimator2D_SetGains(&pe->paramest2D, gains_2d);
 }
 
 

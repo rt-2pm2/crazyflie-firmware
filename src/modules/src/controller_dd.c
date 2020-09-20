@@ -46,10 +46,10 @@ static uint16_t motorPower[4];
 static float motorSignals[4];
 
 // Controller Gains
-static float Kxy_[2] = {1,1};
-static float Kz_[2] = {1,1};
-static float Katt_[2] = {1,1};
-static float Kyaw_[2] = {1,1};
+static float Kxy_[2] = {-16, -4};
+static float Kz_[2] = {-400, -40};
+static float Katt_[2] = {-400, -40};
+static float Kyaw_[2] = {-100, -20};
 
 
 void controllerDD_update_gains() {

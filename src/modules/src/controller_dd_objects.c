@@ -29,6 +29,10 @@
 #include "stabilizer_types.h"
 #include "controller_dd_objects.h"
 #include "debug.h"
+
+#define MAXTILT (3.0f * M_PI_F / 8.0f)
+
+
 // PRIVATE
 // Split the setpoint in different components
 void setpoint2arrays(const setpoint_t* sp,
@@ -234,11 +238,13 @@ float DDController_lin2angle(DDController* pc,
 	
 	// Compute the u to get the acceleration along this axis
 	float phix = (-alpha + acc_dem) / beta;
+	phix = fmaxf(fminf(phix, MAXTILT), -MAXTILT);
+
 	// That is related to the angle
 	float ex[2] = {
 		angle - phix,
 		angle_vel - 
-			(pc->Kxy[0] * vel + (alpha + beta * angle)) / beta
+			(pc->Kxy[0] * vel + pc->Kxy[1] * (alpha + beta * angle)) / beta
 	};
 	
 	angle_output = 

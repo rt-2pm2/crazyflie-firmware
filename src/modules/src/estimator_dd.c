@@ -31,6 +31,10 @@
 #define CTRL_THRESHOLD (0.1f)
 
 // STATIC VARIABLES
+static float gains_x[2] = {1,1};
+static float gains_y[2] = {1,1};
+static float gains_2d[DDESTPAR_GAINS2DSIZE];
+
 
 // ==================================================================
 //			GLOBALS
@@ -64,6 +68,12 @@ bool control_valid(const float v[4]) {
 	}
 
 	return out;
+}
+
+void  estimatorDD_SetGains(float gains_x[2], float gains_y[2],
+		float gains_2d[DDESTPAR_GAINS2DSIZE]) {
+	DDParamEstimator_SetGains(&ddparamestimator_, gains_x,
+			gains_y, gains_2d);
 }
 
 // ===================================================================
@@ -132,6 +142,8 @@ void estimatorDDInit(void) {
 	// Initialize the estimators
 	DDEstimator_Init(&ddestimator_);
 	DDParamEstimator_Init(&ddparamestimator_);
+	
+	//XXX I initialize the gains2d here
 };
 
 bool estimatorDDTest(void) {
@@ -168,6 +180,9 @@ bool estimatorDD_Step(state_t *state,
 
 	// Here we can control the rate
 	if (RATE_DO_EXECUTE(RATE_250_HZ, tick)) {
+		// Update the gains
+		estimatorDD_SetGains(gains_x, gains_y, gains_2d);
+
 		// XXX Check if the state has been updated
 		updated = DDEstimator_Step(&ddestimator_);
 
@@ -229,11 +244,47 @@ DDParams estimatorDD_GetParam() {
 	return out;
 }
 
+
+
 float estimatorDD_GetTMeasTimespan() {
 	float out = 0.0;
 	DDEstimator_GetMeasuresTimeInterval(&ddestimator_, &out);
 	return out;
 }
+
+
+
+
+
+
+PARAM_GROUP_START(estimatorDD)
+	PARAM_ADD(PARAM_FLOAT, Kest_x, &gains_x[0])
+	PARAM_ADD(PARAM_FLOAT, Kest_x_d, &gains_x[1])
+	PARAM_ADD(PARAM_FLOAT, Kest_y, &gains_y[0])
+	PARAM_ADD(PARAM_FLOAT, Kest_y_d, &gains_y[1])
+
+	PARAM_ADD(PARAM_FLOAT, Kest_2d0, &gains_2d[0])
+	PARAM_ADD(PARAM_FLOAT, Kest_2d1, &gains_2d[1])
+	PARAM_ADD(PARAM_FLOAT, Kest_2d2, &gains_2d[2])
+	PARAM_ADD(PARAM_FLOAT, Kest_2d3, &gains_2d[3])
+	PARAM_ADD(PARAM_FLOAT, Kest_2d4, &gains_2d[4])
+	PARAM_ADD(PARAM_FLOAT, Kest_2d5, &gains_2d[5])
+	PARAM_ADD(PARAM_FLOAT, Kest_2d6, &gains_2d[6])
+	PARAM_ADD(PARAM_FLOAT, Kest_2d7, &gains_2d[7])
+	PARAM_ADD(PARAM_FLOAT, Kest_2d8, &gains_2d[8])
+	PARAM_ADD(PARAM_FLOAT, Kest_2d9, &gains_2d[9])
+	PARAM_ADD(PARAM_FLOAT, Kest_2d10, &gains_2d[10])
+	PARAM_ADD(PARAM_FLOAT, Kest_2d11, &gains_2d[11])
+	PARAM_ADD(PARAM_FLOAT, Kest_2d12, &gains_2d[12])
+	PARAM_ADD(PARAM_FLOAT, Kest_2d13, &gains_2d[13])
+	PARAM_ADD(PARAM_FLOAT, Kest_2d14, &gains_2d[14])
+	PARAM_ADD(PARAM_FLOAT, Kest_2d15, &gains_2d[15])
+	PARAM_ADD(PARAM_FLOAT, Kest_2d16, &gains_2d[16])
+	PARAM_ADD(PARAM_FLOAT, Kest_2d17, &gains_2d[17])
+	PARAM_ADD(PARAM_FLOAT, Kest_2d18, &gains_2d[18])
+	PARAM_ADD(PARAM_FLOAT, Kest_2d19, &gains_2d[19])
+PARAM_GROUP_STOP(estimatorDD)
+
 
 
 LOG_GROUP_START(estimator_dd_states)

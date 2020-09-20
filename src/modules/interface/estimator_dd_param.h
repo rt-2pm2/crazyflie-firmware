@@ -119,6 +119,8 @@ void DDParamEstimator2D_Reset(DDParamEstimator2D* pm);
 void DDParamEstimator2D_Step(DDParamEstimator2D* pm,
 		float input[DDESTPAR_INPUT2DSIZE],
 		float state[DDESTPAR_STATE2DSIZE], float T);
+void DDParamEstimator2D_SetGains(DDParamEstimator2D* pm,
+		const float gains[DDESTPAR_GAINS2DSIZE]);
 void DDParamEstimator2D_GetParams(DDParamEstimator2D* pm,
 		float alpha[DDESTPAR_ALPHA2DSIZE],
 		float beta[DDESTPAR_BETA2DSIZE]);
@@ -153,6 +155,16 @@ void DDParamEstimator_Step(DDParamEstimator* pe,
 		const float input[DDEST_NUMOFINPUTS],
 		float deltaT
 		);
+
+/**
+ * Set the parameter estimators gains
+ */
+void DDParamEstimator_SetGains(DDParamEstimator* pe,
+		float gains_x[2],
+		float gains_y[2],
+		float gains_2d[DDESTPAR_GAINS2DSIZE]
+		);
+
 
 /**
  * Get the data structure of the parameters from the estimator
