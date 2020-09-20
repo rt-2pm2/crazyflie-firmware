@@ -21,29 +21,34 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- * controller.h - Controller interface
+ * controller_dd.h - DataDriven Controller Interface
  */
-#ifndef __CONTROLLER_H__
-#define __CONTROLLER_H__
+#ifndef __CONTROLLER_DD_H__
+#define __CONTROLLER_DD_H__
 
+
+#include "estimator_dd_param.h"
 #include "stabilizer_types.h"
 
-typedef enum {
-  ControllerTypeAny,
-  ControllerTypePID,
-  ControllerTypeMellinger,
-  ControllerTypeINDI,
-  ControllerTypeDD,
-  ControllerType_COUNT,
-} ControllerType;
-
-void controllerInit(ControllerType controller);
-bool controllerTest(void);
-void controller(control_t *control, setpoint_t *setpoint,
+void controllerDDInit(void);
+bool controllerDDTest(void);
+void controllerDD(control_t *control, setpoint_t *setpoint,
                                          const sensorData_t *sensors,
                                          const state_t *state,
                                          const uint32_t tick);
-ControllerType getControllerType(void);
-const char* controllerGetName();
 
-#endif //__CONTROLLER_H__
+void controllerDD_Step(const state_t *state, DDParams* params,
+		float T);
+
+/**
+ * Return the motor power assigned to each motor by the controller
+ */
+void controllerDD_GetMotorPower(uint16_t v[4]);
+
+/**
+ * Return the motor control signals assigned to each motor by the controller
+ */
+void controllerDD_GetMotorSignals(float v[4]);
+
+
+#endif //__CONTROLLER_DD_H__

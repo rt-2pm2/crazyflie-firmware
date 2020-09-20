@@ -152,6 +152,8 @@ typedef struct sensorData_s {
 
 typedef struct state_s {
   attitude_t attitude;      // deg (legacy CF2 body coordinate system, where pitch is inverted)
+  attitude_t attitudeRate;
+  attitude_t attitudeAcc;
   quaternion_t attitudeQuaternion;
   point_t position;         // m
   velocity_t velocity;      // m/s

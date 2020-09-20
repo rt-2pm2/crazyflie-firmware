@@ -53,6 +53,10 @@
 #include "static_mem.h"
 #include "rateSupervisor.h"
 
+#include "estimator_dd.h"
+#include "controller_dd.h"
+
+
 static bool isInit;
 static bool emergencyStop = false;
 static int emergencyStopTimeout = EMERGENCY_STOP_TIMEOUT_DISABLED;
@@ -67,6 +71,7 @@ static setpoint_t setpoint;
 static sensorData_t sensorData;
 static state_t state;
 static control_t control;
+static float motor_signals[4];
 
 static StateEstimatorType estimatorType;
 static ControllerType controllerType;
@@ -250,6 +255,8 @@ static void stabilizerTask(void* param)
 
   DEBUG_PRINT("Ready to fly.\n");
 
+  bool estimate_updated = false;
+
   while(1) {
     // The sensor should unlock at 1kHz
     sensorsWaitDataReady();
@@ -275,7 +282,13 @@ static void stabilizerTask(void* param)
         controllerType = getControllerType();
       }
 
-      stateEstimator(&state, &sensorData, &control, tick);
+      // Depending on the estimator...
+      if (estimatorType != datadrivenEstimator) {
+      	stateEstimator(&state, &sensorData, &control, tick);
+      } else {
+      	estimate_updated = estimatorDD_Step(&state, motor_signals, tick);
+      }
+
       compressState();
 
       commanderGetSetpoint(&setpoint, &state);
@@ -284,13 +297,27 @@ static void stabilizerTask(void* param)
       sitAwUpdateSetpoint(&setpoint, &sensorData, &state);
 
       controller(&control, &setpoint, &sensorData, &state, tick);
+      
+      if ((controllerType == ControllerTypeDD) && estimate_updated) {
+	// With DD Controller the previous command just updates the internal
+	// setpoint. The call to the control step is made below in case
+	// the parameters are estimated.
+	DDParams pp = estimatorDD_GetParam();
+	if (pp.valid) {
+		float dt = estimatorDD_GetTMeasTimespan();
+		controllerDD_Step(&state, &pp, dt);
+		controllerDD_GetMotorSignals(motor_signals);
+	}
+      }
 
       checkEmergencyStopTimeout();
 
       if (emergencyStop) {
         powerStop();
       } else {
-        powerDistribution(&control);
+	      if (controllerType != ControllerTypeDD) {
+		      powerDistribution(&control);
+	      }
       }
 
       // Log data to uSD card if configured
@@ -555,7 +582,7 @@ LOG_ADD(LOG_FLOAT, motorVarYM4, &accVarY[3])
 LOG_ADD(LOG_UINT8, motorPass, &motorPass)
 LOG_ADD(LOG_UINT16, motorTestCount, &motorTestCount)
 LOG_GROUP_STOP(health)
-
+/*
 LOG_GROUP_START(ctrltarget)
 LOG_ADD(LOG_FLOAT, x, &setpoint.position.x)
 LOG_ADD(LOG_FLOAT, y, &setpoint.position.y)
@@ -588,6 +615,7 @@ LOG_ADD(LOG_INT16, ay, &setpointCompressed.ay)
 LOG_ADD(LOG_INT16, az, &setpointCompressed.az)
 LOG_GROUP_STOP(ctrltargetZ)
 
+*/
 LOG_GROUP_START(stabilizer)
 LOG_ADD(LOG_FLOAT, roll, &state.attitude.roll)
 LOG_ADD(LOG_FLOAT, pitch, &state.attitude.pitch)

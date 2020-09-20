@@ -45,6 +45,8 @@
 
 #include "peer_localization.h"
 
+#include "estimator_dd.h"
+
 #define NBR_OF_RANGES_IN_PACKET   5
 #define DEFAULT_EMERGENCY_STOP_TIMEOUT (1 * RATE_MAIN_LOOP)
 
@@ -172,7 +174,10 @@ static void genericLocHandle(CRTPPacket* pk)
     ext_pose.quat.w = data->qw;
     ext_pose.stdDevPos = extPosStdDev;
     ext_pose.stdDevQuat = extQuatStdDev;
-    estimatorEnqueuePose(&ext_pose);
+    //estimatorEnqueuePose(&ext_pose);
+    // Trigger the dd_controller
+    estimatorDDEnqueuePose(&ext_pose);
+
     tickOfLastPacket = xTaskGetTickCount();
   } else if (type == EXT_POSE_PACKED) {
     uint8_t numItems = (pk->size - 1) / sizeof(extPosePackedItem);
@@ -186,6 +191,7 @@ static void genericLocHandle(CRTPPacket* pk)
         ext_pose.stdDevPos = extPosStdDev;
         ext_pose.stdDevQuat = extQuatStdDev;
         estimatorEnqueuePose(&ext_pose);
+	// Trigger the dd_controller
         tickOfLastPacket = xTaskGetTickCount();
         break;
       }

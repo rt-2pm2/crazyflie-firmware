@@ -5,6 +5,7 @@
 #include "estimator.h"
 #include "estimator_complementary.h"
 #include "estimator_kalman.h"
+#include "estimator_dd.h"
 
 #define DEFAULT_ESTIMATOR complementaryEstimator
 static StateEstimatorType currentEstimator = anyEstimator;
@@ -80,10 +81,26 @@ static EstimatorFcns estimatorFunctions[] = {
         .estimatorEnqueueYawError = estimatorKalmanEnqueueYawError,
         .estimatorEnqueueSweepAngles = estimatorKalmanEnqueueSweepAngles,
     },
+    {
+    	.init = estimatorDDInit,
+	.deinit = NOT_IMPLEMENTED,
+	.test = estimatorDDTest,
+	.update = estimatorDD,
+	.name = "DataDriven",
+	.estimatorEnqueueTDOA = NOT_IMPLEMENTED,
+	.estimatorEnqueuePosition = NOT_IMPLEMENTED,
+	.estimatorEnqueuePose = estimatorDDEnqueuePose,
+	.estimatorEnqueueDistance = NOT_IMPLEMENTED,
+	.estimatorEnqueueTOF = NOT_IMPLEMENTED,
+	.estimatorEnqueueAbsoluteHeight = NOT_IMPLEMENTED,
+	.estimatorEnqueueFlow = NOT_IMPLEMENTED,
+	.estimatorEnqueueYawError = NOT_IMPLEMENTED,
+	.estimatorEnqueueSweepAngles = NOT_IMPLEMENTED,
+    },
 };
 
 void stateEstimatorInit(StateEstimatorType estimator) {
-  stateEstimatorSwitchTo(estimator);
+	stateEstimatorSwitchTo(estimator);
 }
 
 void stateEstimatorSwitchTo(StateEstimatorType estimator) {
