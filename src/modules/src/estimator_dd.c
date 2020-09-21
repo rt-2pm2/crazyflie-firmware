@@ -31,9 +31,47 @@
 #define CTRL_THRESHOLD (0.1f)
 
 // STATIC VARIABLES
-static float gains_x[2] = {1,1};
-static float gains_y[2] = {1,1};
-static float gains_2d[DDESTPAR_GAINS2DSIZE];
+
+// Gains
+static float gains_x[2] = {0.00001, 0.1};
+static float gains_y[2] = {0.00001, 0.1};
+static float gains_2d[DDESTPAR_GAINS2DSIZE] = {
+	0.02,  0.0005, 0.0005, 0.0005, 0.0005,
+	0.02,  0.0005, 0.0005, 0.0005, 0.0005,
+	0.02,  0.0005, 0.0005, 0.0005, 0.0005,
+	0.02,  0.0005, 0.0005, 0.0005, 0.0005
+};
+
+// Initial Parameters
+static float alpha_xy_init = 0;
+static float beta_x_init = 1;
+static float beta_y_init = -1;
+static float alpha2d_init[DDESTPAR_ALPHA2DSIZE] = {-1, 0, 0, 0};
+static float beta2d_init[DDESTPAR_BETA2DSIZE] = {
+	5, 5, 5, 5,
+	-50, -50, 50, 50,
+	-50, 50, 50, -50,
+	50, -50, 50, -50
+};
+
+
+// Bounds
+static float beta_x_bounds[2] = {0.1, 2};
+static float beta_y_bounds[2] = {-2.0, -0.1};
+static float beta2d_lowerb[16] = {
+	1,1,1,1,
+	-100, -100, 1, 1,
+	-100, 1, 1, -100,
+	1, -100, 1, -100
+};
+static float beta2d_upperb[16] = {
+	10,10,10,10,
+	-1, -1, 100, 100,
+	-1, 100, 100, -1,
+	100, -1, 100, -1
+};
+
+
 
 
 // ==================================================================
@@ -70,10 +108,32 @@ bool control_valid(const float v[4]) {
 	return out;
 }
 
-void  estimatorDD_SetGains(float gains_x[2], float gains_y[2],
-		float gains_2d[DDESTPAR_GAINS2DSIZE]) {
-	DDParamEstimator_SetGains(&ddparamestimator_, gains_x,
-			gains_y, gains_2d);
+
+void estimatorDDSetparams(float ax, float bx, float ay, float by, 
+		float a2d[DDESTPAR_ALPHA2DSIZE],
+		float b2d[DDESTPAR_BETA2DSIZE]) {
+
+	DDParams par; 
+	par.valid = false; // Send the parameters with the false flag
+	
+	par.alpha_x = ax;
+	par.alpha_y = ay;
+	
+	par.beta_x = bx;
+	par.beta_y = by;
+
+	for (int i = 0; i < DDESTPAR_ALPHA2DSIZE; i++) {
+		 par.alpha2d[i] = a2d[i];
+	}
+
+	for (int i = 0; i < DDESTPAR_ALPHA2DSIZE; i++) {
+		 par.beta2d[i] = b2d[i];
+	}
+
+	par.alpha2dsize = DDESTPAR_ALPHA2DSIZE;
+	par.beta2dsize = DDESTPAR_ALPHA2DSIZE; 
+
+	DDParamEstimator_SetParams(&ddparamestimator_, par);
 }
 
 // ===================================================================
@@ -143,7 +203,25 @@ void estimatorDDInit(void) {
 	DDEstimator_Init(&ddestimator_);
 	DDParamEstimator_Init(&ddparamestimator_);
 	
-	//XXX I initialize the gains2d here
+	// Initialize the parameters
+	estimatorDDSetparams(
+			alpha_xy_init,
+			beta_x_init,
+			alpha_xy_init,
+			beta_y_init, 
+			alpha2d_init,
+			beta2d_init
+			);
+
+	// Initialize the bounds
+	DDParamEstimator_SetBounds(&ddparamestimator_, 
+		beta_x_bounds, beta_y_bounds,
+		beta2d_lowerb, beta2d_upperb);
+
+	// Initialize the gains
+	DDParamEstimator_SetGains(&ddparamestimator_,
+			gains_x, gains_y,
+			gains_2d);
 };
 
 bool estimatorDDTest(void) {
@@ -181,7 +259,8 @@ bool estimatorDD_Step(state_t *state,
 	// Here we can control the rate
 	if (RATE_DO_EXECUTE(RATE_250_HZ, tick)) {
 		// Update the gains
-		estimatorDD_SetGains(gains_x, gains_y, gains_2d);
+		DDParamEstimator_SetGains(&ddparamestimator_, gains_x,
+			gains_y, gains_2d);
 
 		// XXX Check if the state has been updated
 		updated = DDEstimator_Step(&ddestimator_);

@@ -169,9 +169,19 @@ void DDParamEstimator_SetGains(DDParamEstimator* pe,
 /**
  * Get the data structure of the parameters from the estimator
  */
-DDParams DDParamEstimator_GetParams(DDParamEstimator* pe);//,
-//		DDParams* params);
+DDParams DDParamEstimator_GetParams(DDParamEstimator* pe);
 
+/**
+ * Get the data structure of the parameters from the estimator
+ */
+void DDParamEstimator_SetParams(DDParamEstimator* pe, DDParams pa);
 
+/**
+ * Set the bound for the beta parameters
+ */
+void DDParamEstimator_SetBounds(DDParamEstimator* pe, 
+		float beta_x[2], float beta_y[2],
+		float beta2dlb[DDESTPAR_BETA2DSIZE],
+		float beta2dup[DDESTPAR_BETA2DSIZE]);
 
 #endif //__ESTIMATOR_DD_DATA_H__

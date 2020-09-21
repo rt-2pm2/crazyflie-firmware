@@ -91,7 +91,8 @@ void DDParamEstimator1D_SetGains(DDParamEstimator1D* pe,
 	}
 }
 
-void DDParamEstimator1D_SetBetaBounds(DDParamEstimator1D* pe, const float bbounds[2]) {
+void DDParamEstimator1D_SetBetaBounds(DDParamEstimator1D* pe,
+		const float bbounds[2]) {
 	int i = 0;
 	for (i = 0; i < 2; i++) {
 		pe->beta_bounds[i] = bbounds[i];
@@ -226,6 +227,30 @@ void DDParamEstimator2D_SetGains(DDParamEstimator2D* pe,
 	}
 }
 
+
+void DDParamEstimator2D_SetBetaLBounds(DDParamEstimator2D* pe,
+		const float bbounds[DDESTPAR_BETA2DSIZE]) {
+	int i = 0;
+	for (i = 0; i < DDESTPAR_BETA2DSIZE; i++) {
+		pe->beta_lbounds[i] = bbounds[i];
+	}
+}
+
+void DDParamEstimator2D_SetBetaUBounds(DDParamEstimator2D* pe,
+		const float bbounds[DDESTPAR_BETA2DSIZE]) {
+	int i = 0;
+	for (i = 0; i < DDESTPAR_BETA2DSIZE; i++) {
+		pe->beta_ubounds[i] = bbounds[i];
+	}
+}
+
+void DDParamEstimator2D_SetBetaBounds(DDParamEstimator2D* pe,
+		const float blbounds[DDESTPAR_BETA2DSIZE],
+		const float bubounds[DDESTPAR_BETA2DSIZE]) {
+	DDParamEstimator2D_SetBetaLBounds(pe, blbounds);
+	DDParamEstimator2D_SetBetaUBounds(pe, bubounds);
+}
+
 void DDParamEstimator2D_GetParams(DDParamEstimator2D* pe,
 		float alpha[DDESTPAR_ALPHA2DSIZE],
 		float beta[DDESTPAR_BETA2DSIZE]) {
@@ -352,3 +377,25 @@ DDParams DDParamEstimator_GetParams(DDParamEstimator* pe) {
 	return pe->params;
 }
 
+void DDParamEstimator_SetParams(DDParamEstimator* pe, DDParams pa) {
+	pe->params = pa;
+	DDParamEstimator1D_SetParams(&pe->paramest1D[0],
+			pa.alpha_x, pa.beta_x);
+	DDParamEstimator1D_SetParams(&pe->paramest1D[1],
+			pa.alpha_y, pa.beta_y);
+
+	DDParamEstimator2D_SetParams(&pe->paramest2D,
+			pa.alpha2d, pa.beta2d);
+}
+
+void DDParamEstimator_SetBounds(DDParamEstimator* pe, 
+		float beta_x[2], float beta_y[2],
+		float beta2dlb[DDESTPAR_BETA2DSIZE],
+		float beta2dup[DDESTPAR_BETA2DSIZE]) {
+
+	DDParamEstimator1D_SetBetaBounds(&pe->paramest1D[0], beta_x);
+	DDParamEstimator1D_SetBetaBounds(&pe->paramest1D[1], beta_y);
+
+	DDParamEstimator2D_SetBetaBounds(&pe->paramest2D, beta2dlb,
+			beta2dup);
+}
