@@ -233,6 +233,8 @@ void positionControllerResetAllPID()
   pidReset(&this.pidVZ.pid);
 }
 
+
+/*
 LOG_GROUP_START(posCtl)
 
 LOG_ADD(LOG_FLOAT, targetVX, &this.pidVX.pid.desired)
@@ -303,3 +305,4 @@ PARAM_ADD(PARAM_FLOAT, xyVelMax, &xyVelMax)
 PARAM_ADD(PARAM_FLOAT, zVelMax,  &zVelMax)
 
 PARAM_GROUP_STOP(posCtlPid)
+*/

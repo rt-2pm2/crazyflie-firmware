@@ -152,7 +152,7 @@ void controllerPid(control_t *control, setpoint_t *setpoint,
   }
 }
 
-
+/*
 LOG_GROUP_START(controller)
 LOG_ADD(LOG_FLOAT, cmd_thrust, &cmd_thrust)
 LOG_ADD(LOG_FLOAT, cmd_roll, &cmd_roll)
@@ -174,3 +174,4 @@ LOG_GROUP_STOP(controller)
 PARAM_GROUP_START(controller)
 PARAM_ADD(PARAM_UINT8, tiltComp, &tiltCompensationEnabled)
 PARAM_GROUP_STOP(controller)
+*/

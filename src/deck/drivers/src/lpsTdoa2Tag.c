@@ -362,6 +362,7 @@ void lpsTdoa2TagSetOptions(lpsTdoa2AlgoOptions_t* newOptions) {
   options = newOptions;
 }
 
+/*
 LOG_GROUP_START(tdoa2)
 LOG_ADD(LOG_FLOAT, d7-0, &logUwbTdoaDistDiff[0])
 LOG_ADD(LOG_FLOAT, d0-1, &logUwbTdoaDistDiff[1])
@@ -390,3 +391,4 @@ LOG_ADD(LOG_UINT16, dist4-5, &logAnchorDistance[5])
 LOG_ADD(LOG_UINT16, dist5-6, &logAnchorDistance[6])
 LOG_ADD(LOG_UINT16, dist6-7, &logAnchorDistance[7])
 LOG_GROUP_STOP(tdoa2)
+*/

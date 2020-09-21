@@ -37,6 +37,7 @@
 #include "num.h"
 #include "motors.h"
 #include "param.h"
+#include "log.h"
 
 #define limitThrust(VAL) limitUint16(VAL)
 
@@ -126,7 +127,7 @@ void controllerDD_GetMotorSignals(float v[4]) {
 }
 
 
-PARAM_GROUP_START(ctrlDD)
+PARAM_GROUP_START(ctrlDD_par)
 	PARAM_ADD(PARAM_FLOAT, Kxy, &Kxy_[0])
 	PARAM_ADD(PARAM_FLOAT, Kxy_d, &Kxy_[1])
 	PARAM_ADD(PARAM_FLOAT, Kz, &Kz_[0])
@@ -135,10 +136,11 @@ PARAM_GROUP_START(ctrlDD)
 	PARAM_ADD(PARAM_FLOAT, Katt_d, &Katt_[1])
 	PARAM_ADD(PARAM_FLOAT, Kyaw, &Kyaw_[0])
 	PARAM_ADD(PARAM_FLOAT, Kyaw_d, &Kyaw_[1])
-PARAM_GROUP_STOP(ctrlDD)
+PARAM_GROUP_STOP(ctrlDD_par)
 
-/*
-LOG_GROUP_START(ctrlDD)
-	LOG_ADD(LOG_FLOAT, cmd_thrust, &cmd_thrust)
-LOG_GROUP_STOP(ctrlDD)
-*/
+LOG_GROUP_START(ctrlDD_log)
+	LOG_ADD(LOG_FLOAT, msignal0, &motorSignals[0])
+	LOG_ADD(LOG_FLOAT, msignal1, &motorSignals[1])
+	LOG_ADD(LOG_FLOAT, msignal2, &motorSignals[2])
+	LOG_ADD(LOG_FLOAT, msignal3, &motorSignals[3])
+LOG_GROUP_STOP(ctrlDD_log)

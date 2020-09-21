@@ -322,6 +322,7 @@ void controllerMellinger(control_t *control, setpoint_t *setpoint,
   }
 }
 
+/*
 PARAM_GROUP_START(ctrlMel)
 PARAM_ADD(PARAM_FLOAT, kp_xy, &kp_xy)
 PARAM_ADD(PARAM_FLOAT, kd_xy, &kd_xy)
@@ -360,3 +361,4 @@ LOG_ADD(LOG_FLOAT, i_err_x, &i_error_x)
 LOG_ADD(LOG_FLOAT, i_err_y, &i_error_y)
 LOG_ADD(LOG_FLOAT, i_err_z, &i_error_z)
 LOG_GROUP_STOP(ctrlMel)
+*/

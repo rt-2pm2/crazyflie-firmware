@@ -117,6 +117,7 @@ static void positionUpdateVelocityInternal(float accWZ, float dt, struct selfSta
   state->velocityZ *= state->velZAlpha;
 }
 
+/*
 LOG_GROUP_START(posEstAlt)
 LOG_ADD(LOG_FLOAT, estimatedZ, &state.estimatedZ)
 LOG_ADD(LOG_FLOAT, estVZ, &state.estimatedVZ)
@@ -130,3 +131,4 @@ PARAM_ADD(PARAM_FLOAT, velFactor, &state.velocityFactor)
 PARAM_ADD(PARAM_FLOAT, velZAlpha, &state.velZAlpha)
 PARAM_ADD(PARAM_FLOAT, vAccDeadband, &state.vAccDeadband)
 PARAM_GROUP_STOP(posEstAlt)
+*/

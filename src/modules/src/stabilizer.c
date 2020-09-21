@@ -56,6 +56,8 @@
 #include "estimator_dd.h"
 #include "controller_dd.h"
 
+static bool DDControllerStarted = false;
+static int DDControllerCounter = 3;
 
 static bool isInit;
 static bool emergencyStop = false;
@@ -286,6 +288,7 @@ static void stabilizerTask(void* param)
       if (estimatorType != datadrivenEstimator) {
       	stateEstimator(&state, &sensorData, &control, tick);
       } else {
+	stateEstimator(&state, &sensorData, &control, tick);
       	estimate_updated = estimatorDD_Step(&state, motor_signals, tick);
       }
 
@@ -299,14 +302,26 @@ static void stabilizerTask(void* param)
       controller(&control, &setpoint, &sensorData, &state, tick);
       
       if ((controllerType == ControllerTypeDD) && estimate_updated) {
-	// With DD Controller the previous command just updates the internal
-	// setpoint. The call to the control step is made below in case
-	// the parameters are estimated.
-	DDParams pp = estimatorDD_GetParam();
-	if (pp.valid) {
-		float dt = estimatorDD_GetTMeasTimespan();
-		controllerDD_Step(&state, &pp, dt);
-		controllerDD_GetMotorSignals(motor_signals);
+	if (!DDControllerStarted && setpoint.position.z > 0.01f) {
+		float initThrust = 0.8 * 65000;
+		control_t temp_c = {-2, 1, 5, initThrust};
+		temp_c.roll += DDControllerCounter;
+		powerDistribution(&temp_c);
+		motor_signals[0] = 0.8;
+		motor_signals[1] = 0.8;
+		motor_signals[2] = 0.8;
+		motor_signals[3] = 0.8;
+		if (DDControllerCounter-- < 0) {
+			 // not really random...
+			DDControllerStarted = true;
+		}
+	} else {
+		DDParams pp = estimatorDD_GetParam();
+		if (pp.valid) {
+			float dt = estimatorDD_GetTMeasTimespan();
+			controllerDD_Step(&state, &pp, dt);
+			controllerDD_GetMotorSignals(motor_signals);
+		}
 	}
       }
 

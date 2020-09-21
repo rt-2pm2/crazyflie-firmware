@@ -162,6 +162,7 @@ void attitudeControllerGetActuatorOutput(int16_t* roll, int16_t* pitch, int16_t*
   *yaw = yawOutput;
 }
 
+/*
 LOG_GROUP_START(pid_attitude)
 LOG_ADD(LOG_FLOAT, roll_outP, &pidRoll.outP)
 LOG_ADD(LOG_FLOAT, roll_outI, &pidRoll.outI)
@@ -209,3 +210,4 @@ PARAM_ADD(PARAM_FLOAT, yaw_kp, &pidYawRate.kp)
 PARAM_ADD(PARAM_FLOAT, yaw_ki, &pidYawRate.ki)
 PARAM_ADD(PARAM_FLOAT, yaw_kd, &pidYawRate.kd)
 PARAM_GROUP_STOP(pid_rate)
+*/

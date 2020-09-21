@@ -32,6 +32,7 @@
 
 NO_DMA_CCM_SAFE_ZERO_INIT tdoaEngineState_t tdoaEngineState;
 
+/*
 LOG_GROUP_START(tdoaEngine)
 STATS_CNT_RATE_LOG_ADD(stRx, &tdoaEngineState.stats.packetsReceived)
 STATS_CNT_RATE_LOG_ADD(stEst, &tdoaEngineState.stats.packetsToEstimator)
@@ -56,3 +57,4 @@ PARAM_ADD(PARAM_UINT8, logOthrId, &tdoaEngineState.stats.newRemoteAnchorId)
 // not a frequent action, we chose to expose it anyway.
 PARAM_ADD(PARAM_UINT8, matchAlgo, &tdoaEngineState.matchingAlgorithm)
 PARAM_GROUP_STOP(tdoaEngine)
+*/

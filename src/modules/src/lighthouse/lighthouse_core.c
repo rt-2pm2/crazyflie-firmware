@@ -332,6 +332,7 @@ void lighthouseCoreTask(void *param) {
   }
 }
 
+/*
 LOG_GROUP_START(lighthouse)
 LOG_ADD_BY_FUNCTION(LOG_UINT8, validAngles, &pulseProcessorAnglesQuality)
 
@@ -382,3 +383,5 @@ LOG_GROUP_STOP(lighthouse)
 PARAM_GROUP_START(lighthouse)
 PARAM_ADD(PARAM_UINT8, method, &estimationMethod)
 PARAM_GROUP_STOP(lighthouse)
+
+*/

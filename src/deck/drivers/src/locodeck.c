@@ -509,6 +509,7 @@ static const DeckDriver dwm1000_deck = {
 
 DECK_DRIVER(dwm1000_deck);
 
+/*
 PARAM_GROUP_START(deck)
 PARAM_ADD(PARAM_UINT8 | PARAM_RONLY, bcDWM1000, &isInit)
 PARAM_GROUP_STOP(deck)
@@ -526,3 +527,4 @@ LOG_GROUP_STOP(loco)
 PARAM_GROUP_START(loco)
 PARAM_ADD(PARAM_UINT8, mode, &algoOptions.userRequestedMode)
 PARAM_GROUP_STOP(loco)
+*/

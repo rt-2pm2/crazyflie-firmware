@@ -78,6 +78,7 @@ static float beta2d_upperb[16] = {
 //			GLOBALS
 // Global counter of received sensor messages 
 unsigned long int msg_counter = 0;
+DDParams pp;
 
 /**
  * Estimator Structure
@@ -236,8 +237,8 @@ void estimatorDD(state_t *state,
 		return;
 	}
 
+	DDEstimator_GetState(&ddestimator_, state_vec);
 	if (msg_counter % 300 == 0) {
-		DDEstimator_GetState(&ddestimator_, state_vec);
 		DEBUG_PRINT("ATT %f %f %f\n",
 				(double)(state_vec[DDEST_ROLL] * 180.0f / M_PI_F),
 				(double)(state_vec[DDEST_PITCH] * 180.0f / M_PI_F),
@@ -278,6 +279,7 @@ bool estimatorDD_Step(state_t *state,
 				// Run the parameter estimator
 				DDParamEstimator_Step(&ddparamestimator_, state,
 						controls, deltaT);
+				pp = DDParamEstimator_GetParams(&ddparamestimator_);
 			}
 		}
 	}
@@ -366,11 +368,18 @@ PARAM_GROUP_STOP(estimatorDD)
 
 
 
-LOG_GROUP_START(estimator_dd_states)
+LOG_GROUP_START(estimatorDD_log)
 	LOG_ADD(LOG_FLOAT, xx, &state_vec[DDEST_X])
 	LOG_ADD(LOG_FLOAT, yy, &state_vec[DDEST_Y])
 	LOG_ADD(LOG_FLOAT, zz, &state_vec[DDEST_Z])
 	LOG_ADD(LOG_FLOAT, roll, &state_vec[DDEST_ROLL])
 	LOG_ADD(LOG_FLOAT, pitch, &state_vec[DDEST_PITCH])
 	LOG_ADD(LOG_FLOAT, yaw, &state_vec[DDEST_YAW])
-LOG_GROUP_STOP(estimator_dd_states)
+LOG_GROUP_STOP(estimatorDD_log)
+
+LOG_GROUP_START(estParamDD_log)
+	LOG_ADD(LOG_FLOAT, alpha_x, &pp.alpha_x)
+	LOG_ADD(LOG_FLOAT, alpha_y, &pp.alpha_y)
+	LOG_ADD(LOG_FLOAT, beta_x, &pp.beta_x)
+	LOG_ADD(LOG_FLOAT, beta_y, &pp.beta_y)
+LOG_GROUP_STOP(estParamDD_log)
