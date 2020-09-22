@@ -72,14 +72,14 @@ void state2arrays(const state_t* sp,
 	zest[0] = sp->position.z;
 	zest[1] = sp->velocity.z;
 
-	rollest[0] = sp->attitude.roll / 180 * M_PI_F;
-	rollest[1] = sp->attitudeRate.roll / 180 * M_PI_F;
+	rollest[0] = sp->attitude.roll / 180.0f * M_PI_F;
+	rollest[1] = sp->attitudeRate.roll / 180.0f * M_PI_F;
 
-	pitchest[0] = sp->attitude.pitch / 180 * M_PI_F;
-	pitchest[1] = sp->attitudeRate.pitch / 180 * M_PI_F;
+	pitchest[0] = sp->attitude.pitch / 180.0f * M_PI_F;
+	pitchest[1] = sp->attitudeRate.pitch / 180.0f * M_PI_F;
 
-	yawest[0] = sp->attitude.yaw / 180 * M_PI_F;
-	yawest[1] = sp->attitudeRate.yaw / 180 * M_PI_F;
+	yawest[0] = sp->attitude.yaw / 180.0f * M_PI_F;
+	yawest[1] = sp->attitudeRate.yaw / 180.0f * M_PI_F;
 }
 
 void eval_pseudoinv(arm_matrix_instance_f32* dest, arm_matrix_instance_f32* src) {
