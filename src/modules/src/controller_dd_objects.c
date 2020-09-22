@@ -82,6 +82,39 @@ void state2arrays(const state_t* sp,
 	yawest[1] = sp->attitudeRate.yaw / 180 * M_PI_F;
 }
 
+void eval_pseudoinv(arm_matrix_instance_f32* dest, arm_matrix_instance_f32* src) {
+	arm_status bad;
+	// Temp Buffers for the evaluation of the pseudoinverse
+	float TempNxNy[DDESTPAR_BETA2DSIZE];
+	float TempNxNx[DDESTPAR_BETA2DSIZE];
+	float TempNxNx2[DDESTPAR_BETA2DSIZE];
+
+	// to Temporary Objects
+	arm_matrix_instance_f32 TempNxNym = {
+		DDCTRL_OUTPUTSIZE, DDCTRL_OUTPUTSIZE, TempNxNy};
+	arm_matrix_instance_f32 TempNxNxm = {
+		DDCTRL_OUTPUTSIZE, DDCTRL_OUTPUTSIZE, TempNxNx};
+	arm_matrix_instance_f32 TempNxNx2m = {
+		DDCTRL_OUTPUTSIZE, DDCTRL_OUTPUTSIZE, TempNxNx2};
+
+	// O'
+	bad = arm_mat_trans_f32(src, &TempNxNym);
+	if (bad) {DEBUG_PRINT("Error Transpose: %d \n", bad);}
+
+	// (O' x O)
+	bad = arm_mat_mult_f32(&TempNxNym, src, &TempNxNxm);
+	if (bad) {DEBUG_PRINT("Error Multiply: %d \n", bad);}
+
+	// (O' x O)^-1 x O' = Pseudo inverse
+	bad = arm_mat_inverse_f32(&TempNxNxm, &TempNxNx2m);
+	if (bad) {DEBUG_PRINT("Error Inversion: %d \n", bad);}
+
+	bad = arm_mat_mult_f32(&TempNxNx2m, &TempNxNym, dest);
+	if (bad) {DEBUG_PRINT("Error Multiply: %d \n", bad);}	
+}
+
+
+
 
 // PUBLIC
 void DDController_Init(DDController* pc) {
@@ -193,12 +226,19 @@ void DDController_Step(DDController* pc,
 		1,
 		par->alpha2d};
 
+	// Create a copy of the beta, since the inverse call skrews up the source.
+	//float beta_copy[DDESTPAR_BETA2DSIZE];
+	//memcpy(beta_copy, par->beta2d, DDESTPAR_BETA2DSIZE * sizeof(float));
+	//
+
 	arm_matrix_instance_f32 Beta = {
 		DDCTRL_OUTPUTSIZE,
 		DDCTRL_OUTPUTSIZE,
 		par->beta2d};
+	
+	eval_pseudoinv(&pc->InvBeta, &Beta);
 
-	arm_mat_inverse_f32(&Beta, &pc->InvBeta);
+	//arm_mat_inverse_f32(&Beta, &pc->InvBeta);
 	arm_mat_sub_f32(&pc->Phat, &Alpha, &pc->PhatMinusAlpha);
 	arm_mat_mult_f32(&pc->InvBeta, &pc->PhatMinusAlpha, &pc->Inputs);
 

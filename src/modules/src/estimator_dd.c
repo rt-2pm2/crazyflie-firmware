@@ -257,30 +257,27 @@ bool estimatorDD_Step(state_t *state,
 		const uint32_t tick) {
 	bool updated = false;
 
-	// Here we can control the rate
-	if (RATE_DO_EXECUTE(RATE_250_HZ, tick)) {
-		// Update the gains
-		DDParamEstimator_SetGains(&ddparamestimator_, gains_x,
+	// Update the gains
+	DDParamEstimator_SetGains(&ddparamestimator_, gains_x,
 			gains_y, gains_2d);
 
-		// XXX Check if the state has been updated
-		updated = DDEstimator_Step(&ddestimator_);
+	// XXX Check if the state has been updated
+	updated = DDEstimator_Step(&ddestimator_);
 
-		if (updated) {
-			// Export the estimated state into the system.
-			DDEstimator_ExportState(&ddestimator_, state);
+	if (updated) {
+		// Export the estimated state into the system.
+		DDEstimator_ExportState(&ddestimator_, state);
 
-			float deltaT = 0;
-			DDEstimator_GetMeasuresTimeInterval(
-					&ddestimator_, &deltaT);
+		float deltaT = 0;
+		DDEstimator_GetMeasuresTimeInterval(
+				&ddestimator_, &deltaT);
 
-			// Check if the controller is issuing something
-			if (control_valid(controls)) {
-				// Run the parameter estimator
-				DDParamEstimator_Step(&ddparamestimator_, state,
-						controls, deltaT);
-				pp = DDParamEstimator_GetParams(&ddparamestimator_);
-			}
+		// Check if the controller is issuing something
+		if (control_valid(controls)) {
+			// Run the parameter estimator
+			DDParamEstimator_Step(&ddparamestimator_, state,
+					controls, deltaT);
+			pp = DDParamEstimator_GetParams(&ddparamestimator_);
 		}
 	}
 
@@ -375,6 +372,9 @@ LOG_GROUP_START(estimatorDD_log)
 	LOG_ADD(LOG_FLOAT, roll, &state_vec[DDEST_ROLL])
 	LOG_ADD(LOG_FLOAT, pitch, &state_vec[DDEST_PITCH])
 	LOG_ADD(LOG_FLOAT, yaw, &state_vec[DDEST_YAW])
+	LOG_ADD(LOG_FLOAT, vroll, &state_vec[DDEST_VROLL])
+	LOG_ADD(LOG_FLOAT, vpitch, &state_vec[DDEST_VPITCH])
+	LOG_ADD(LOG_FLOAT, vyaw, &state_vec[DDEST_VYAW])
 LOG_GROUP_STOP(estimatorDD_log)
 
 LOG_GROUP_START(estParamDD_log)
