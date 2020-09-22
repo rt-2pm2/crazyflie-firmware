@@ -23,7 +23,7 @@
 
 #define ARM_MATH_MATRIX_CHECK
 
-#define DDEST_BUFFERSIZE (4)
+#define DDEST_BUFFERSIZE (12)
 #define DDEST_NUMOFCHANNELS (6)
 #define DDEST_NUMOFINPUTS (6)
 #define DDEST_STATESIZE1D (3)
@@ -172,6 +172,8 @@ struct DDEstimator {
 	uint64_t msg_counter;
 
 	bool ready;
+
+	float sensors_mrt;
 	
 	bool initialized;
 };

@@ -165,6 +165,15 @@ void DDObs_Update(DDObs* po, const float tstamps[DDEST_BUFFERSIZE]) {
 		po->deltaT[i] = dT;
 	}
 
+	static int counter = 0;
+	if (counter++ % 1000 == 0) {
+		DEBUG_PRINT("Time deltas: [");
+		for (int i = 0; i < DDEST_BUFFERSIZE; i++) {
+			DEBUG_PRINT("%1.4f ", (double)po->deltaT[i]);
+		}
+		DEBUG_PRINT("\n");
+	}
+
 	// Fill the Obs Matrix
 	for (i = 0; i < DDEST_BUFFERSIZE; i++) {
 		float T = po->deltaT[i];
@@ -254,6 +263,8 @@ void DDEstimator_Init(DDEstimator* pe) {
 	}
 	DDObs_Init(&pe->obs_data);
 
+	pe->sensors_mrt = 0.0;
+
 	pe->msg_counter = 0;
 	pe->ready = false;
 	pe->initialized = true;
@@ -309,8 +320,17 @@ bool DDEstimator_Step(DDEstimator* pe) {
 		DDMeas* pmeas = &pe->estimators[0].meas_data;
 		DDMeas_GetTimestamps(pmeas, timestamps);
 
+		float mrt = timestamps[0];
+		if (mrt <= pe->sensors_mrt) {
+			return false;
+		}
+		pe->sensors_mrt =  mrt;
+
 		// Prepare for the estimation step 
 		DDObs_Update(&pe->obs_data, timestamps);
+
+		
+
 
 		// Run the estimation on each channel
 		for (int i = 0; i < DDEST_NUMOFCHANNELS; i++) {
@@ -367,21 +387,21 @@ void DDEstimator_ExportState(DDEstimator* pe, state_t* ps) {
 				ps->acc.z = state1d[2];
 				break;
 			case DDEST_ROLLCHANNEL:
-				ps->attitude.roll = state1d[0];
-				ps->attitudeRate.roll = state1d[1];
-				ps->attitudeAcc.roll = state1d[2];
+				ps->attitude.roll = state1d[0] * 180.0f / M_PI_F;
+				ps->attitudeRate.roll = state1d[1] * 180.0f / M_PI_F;
+				ps->attitudeAcc.roll = state1d[2] * 180.0f / M_PI_F;
 				rpy.x = state1d[0];
 				break;
 			case DDEST_PITCHCHANNEL:
-				ps->attitude.pitch = state1d[0];
-				ps->attitudeRate.pitch = state1d[1];
-				ps->attitudeAcc.pitch = state1d[2];
+				ps->attitude.pitch = state1d[0] * 180.0f / M_PI_F;
+				ps->attitudeRate.pitch = state1d[1] * 180.0f / M_PI_F;
+				ps->attitudeAcc.pitch = state1d[2] * 180.0f / M_PI_F;
 				rpy.y = state1d[0];
 				break;
 			case DDEST_YAWCHANNEL:
-				ps->attitude.yaw = state1d[0];
-				ps->attitudeRate.yaw = state1d[1];
-				ps->attitudeAcc.yaw = state1d[2];
+				ps->attitude.yaw = state1d[0] * 180.0f / M_PI_F;
+				ps->attitudeRate.yaw = state1d[1] * 180.0f / M_PI_F;
+				ps->attitudeAcc.yaw = state1d[2] * 180.0f / M_PI_F;
 				rpy.z = state1d[0];
 				break;
 			default:
