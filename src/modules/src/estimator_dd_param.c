@@ -141,20 +141,24 @@ void DDParamEstimator2D_Reset(DDParamEstimator2D* pe) {
 }
 
 void DDParamEstimator2D_Step(DDParamEstimator2D* pe,
-		float input[DDESTPAR_INPUT2DSIZE],
-		float state_acc[DDESTPAR_STATE2DSIZE], float deltaT) {
+		float state_acc[DDESTPAR_STATE2DSIZE],
+		const float input[DDESTPAR_INPUT2DSIZE], float deltaT) {
+
+	float input_local[DDESTPAR_INPUT2DSIZE];
+	for (int i = 0; i < DDESTPAR_INPUT2DSIZE; i++) {
+		input_local[i] = input[i];
+	}
 
 	// Get the current value from the global variables
 	float alpha[DDESTPAR_INPUT2DSIZE];
 	float beta[DDESTPAR_BETA2DSIZE];
-	int counter;
 
 	// Copy the parameters in local arrays
-	for (counter=0; counter < DDESTPAR_INPUT2DSIZE; counter++) {
-		alpha[counter] = pe->alpha[counter];
+	for (int i = 0; i < DDESTPAR_INPUT2DSIZE; i++) {
+		alpha[i] = pe->alpha[i];
 	}
-	for (counter = 0; counter < DDESTPAR_BETA2DSIZE; counter++) {
-		beta[counter] = pe->beta[counter];
+	for (int i = 0; i < DDESTPAR_BETA2DSIZE; i++) {
+		beta[i] = pe->beta[i];
 	}
 	
 	// Create Arm handler for the input and state vector
@@ -166,7 +170,7 @@ void DDParamEstimator2D_Step(DDParamEstimator2D* pe,
         arm_matrix_instance_f32 Inputm;
 	arm_mat_init_f32(&Inputm,
 		DDESTPAR_INPUT2DSIZE, 1,
-		input);
+		input_local);
 	
 	// Compute Update
 	arm_mat_mult_f32(&pe->Bm, &Inputm, &pe->WeightedInputsm);
@@ -180,53 +184,66 @@ void DDParamEstimator2D_Step(DDParamEstimator2D* pe,
 	float beta_new[DDESTPAR_BETA2DSIZE];
 
 	float sqrt_T = sqrtf(deltaT);
-	float phi[5]={1, input[0], input[1], input[2], input[3]};
+	//float phi[5] = {1, input[0], input[1], input[2], input[3]};
+
 	// Update the parameters
-	for(counter = 0; counter < DDESTPAR_ALPHA2DSIZE; counter++) {
-		float error_i = pe->ErrorAcc[counter];
-		// Alphas
-		alpha_new[counter] = alpha[counter] + pe->est_gains[counter*DDESTPAR_ALPHA2DSIZE] * phi[0] * sqrt_T * error_i;
-		// Betas	
-		beta_new[counter*DDESTPAR_ALPHA2DSIZE] = 
-			beta[counter*DDESTPAR_ALPHA2DSIZE] + pe->est_gains[1 + counter * DDESTPAR_ALPHA2DSIZE] * phi[1] * sqrt_T * error_i;
-		beta_new[counter*DDESTPAR_ALPHA2DSIZE + 1] =
-			beta[counter*DDESTPAR_ALPHA2DSIZE + 1] + pe->est_gains[2 + counter*DDESTPAR_ALPHA2DSIZE] * phi[2] * sqrt_T * error_i;
-		beta_new[counter*DDESTPAR_ALPHA2DSIZE + 2] =
-			beta[counter*DDESTPAR_ALPHA2DSIZE + 2] + pe->est_gains[3 + counter*DDESTPAR_ALPHA2DSIZE] * phi[3] * sqrt_T * error_i;
-		beta_new[counter*DDESTPAR_ALPHA2DSIZE + 3] =
-			beta[counter*DDESTPAR_ALPHA2DSIZE + 3] + pe->est_gains[4 + counter*DDESTPAR_ALPHA2DSIZE] * phi[4] * sqrt_T * error_i;
+	// Alphas
+	for(int i = 0; i < DDESTPAR_ALPHA2DSIZE; i++) { 
+		float error_i = pe->ErrorAcc[i];
+		//alpha_new[i] = alpha[i] + pe->est_alpha2dgains[i] * phi[0] * sqrt_T * error_i;
+		alpha_new[i] = alpha[i] + pe->est_alpha2dgains[i] * sqrt_T * error_i;
+
+	}
+
+	// Betas
+	//
+	// [b_11 b_12 b_13 b_14 | b_21 b_22 ... b_ij
+	// Update the row 'i'
+	for(int i = 0; i < DDESTPAR_ALPHA2DSIZE; i++) {
+		float error_i = pe->ErrorAcc[i];
+		// Calculate the offset for each row
+		int offset = i *  DDESTPAR_ALPHA2DSIZE;
+		// Update the 'j' column of the 'i' row of the Beta matrix 
+		for (int j = 0; j < DDESTPAR_ALPHA2DSIZE; j++) {
+			//beta_new[offset + j] = beta[offset + j] + pe->est_beta2dgains[offset + j] * phi[j] * sqrt_T * error_i;
+			beta_new[offset + j] = beta[offset + j] + pe->est_beta2dgains[offset + j] * input_local[j] * sqrt_T * error_i;
+		}
 	}
 	
-	// Compute Projections
-	for(counter=0; counter< DDESTPAR_BETA2DSIZE; counter++){
-		if (beta_new[counter] < pe->beta_lbounds[counter]) {
-			beta_new[counter] = pe->beta_lbounds[counter];
+	// Check bound of Betas
+	for(int i = 0; i < DDESTPAR_BETA2DSIZE; i++){
+		if (beta_new[i] < pe->beta_lbounds[i]) {
+			beta_new[i] = pe->beta_lbounds[i];
 			//DEBUG_PRINT("Input 14 [ %.3f, %.3f]\n", (double)alpha_new, (double)beta_new);
 		}
-		if (beta_new[counter] > pe->beta_ubounds[counter]) {
-			beta_new[counter] = pe->beta_ubounds[counter];
+		if (beta_new[i] > pe->beta_ubounds[i]) {
+			beta_new[i] = pe->beta_ubounds[i];
 			//DEBUG_PRINT("Input 14 [ %.3f, %.3f]\n", (double)alpha_new, (double)beta_new);
 		}
 	}
 	
 	// Update global variables
-	for(counter = 0; counter < DDESTPAR_ALPHA2DSIZE; counter++){
-		pe->alpha[counter] = alpha_new[counter];
+	for(int i = 0; i < DDESTPAR_ALPHA2DSIZE; i++){
+		pe->alpha[i] = alpha_new[i];
 	}
-
-	for(counter = 0; counter < DDESTPAR_BETA2DSIZE; counter++){
-		pe->beta[counter] = beta_new[counter];
+	for(int i = 0; i < DDESTPAR_BETA2DSIZE; i++){
+		pe->beta[i] = beta_new[i];
 	}
 }
 
 void DDParamEstimator2D_SetGains(DDParamEstimator2D* pe,
-		const float gains[DDESTPAR_GAINS2DSIZE]) {
-	int i = 0;
-	for (i = 0; i < DDESTPAR_GAINS2DSIZE; i++) {
-		pe->est_gains[i] = gains[i];
+		const float alpha_gains[DDESTPAR_ALPHA2DSIZE],
+		const float beta_gains[DDESTPAR_BETA2DSIZE]) {
+
+	// Set Alpha Gains
+	for (int i = 0; i < DDESTPAR_ALPHA2DSIZE; i++) {
+		pe->est_alpha2dgains[i] = alpha_gains[i];
+	}
+	// Set Beta Gains
+	for (int i = 0; i < DDESTPAR_BETA2DSIZE; i++) {
+		pe->est_beta2dgains[i] = beta_gains[i];
 	}
 }
-
 
 void DDParamEstimator2D_SetBetaLBounds(DDParamEstimator2D* pe,
 		const float bbounds[DDESTPAR_BETA2DSIZE]) {
@@ -310,9 +327,8 @@ void DDParamEstimator_Reset(DDParamEstimator* pe) {
 void DDParamEstimator_Step(DDParamEstimator* pe, state_t* ps,
 		const float input[DDEST_NUMOFINPUTS],
 		float deltaT) {
-	if (pe->initialized) {
-		//XXX Ask Lucas for the inputs
 
+	if (pe->initialized) {
 		// Estimate the paremeters on X
 		float state_accx = ps->acc.x;
 		float input_x = ps->attitude.pitch; 
@@ -327,7 +343,6 @@ void DDParamEstimator_Step(DDParamEstimator* pe, state_t* ps,
 				state_accy,
 				input_y, deltaT);
 
-
 		// Estimate the paremeters on the rest
 		float state_acczatt[DDESTPAR_STATE2DSIZE];
 		state_acczatt[0] = ps->acc.z;
@@ -335,10 +350,8 @@ void DDParamEstimator_Step(DDParamEstimator* pe, state_t* ps,
 		state_acczatt[2] = ps->attitudeAcc.pitch;
 		state_acczatt[3] = ps->attitudeAcc.yaw;
 
-		float input_zatt[4];
-		DDParamEstimator2D_Step(&pe->paramest2D,
-				state_acczatt,
-				input_zatt, deltaT);
+		DDParamEstimator2D_Step(&pe->paramest2D, state_acczatt,
+				input, deltaT);
 
 		// Update the internal structure
 		pe->params.alpha_x = pe->paramest1D[0].alpha;
@@ -364,12 +377,14 @@ void DDParamEstimator_Step(DDParamEstimator* pe, state_t* ps,
 
 void DDParamEstimator_SetGains(DDParamEstimator* pe,
 		float gains_x[2], float gains_y[2],
-		float gains_2d[DDESTPAR_GAINS2DSIZE]) {
+		float gains_alpha2d[DDESTPAR_ALPHA2DSIZE],
+		float gains_beta2d[DDESTPAR_BETA2DSIZE]) {
 
 	DDParamEstimator1D_SetGains(&pe->paramest1D[0], gains_x);
 	DDParamEstimator1D_SetGains(&pe->paramest1D[1], gains_y);
 
-	DDParamEstimator2D_SetGains(&pe->paramest2D, gains_2d);
+	DDParamEstimator2D_SetGains(&pe->paramest2D,
+			gains_alpha2d, gains_beta2d);
 }
 
 

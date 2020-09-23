@@ -30,3 +30,5 @@ docs/.jekyll-cache
 
 /examples/app_peer_to_peer/bin/*
 /examples/app_peer_to_peer/cf2.*
+
+*.swp

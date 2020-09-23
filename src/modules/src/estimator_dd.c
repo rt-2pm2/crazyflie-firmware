@@ -28,25 +28,30 @@
 
 #include "debug.h"
 
-#define CTRL_THRESHOLD (0.1f)
+#define CTRL_THRESHOLD (0.01f)
 
 // STATIC VARIABLES
 
-// Gains
+// Parameter Estimator Gains
 static float gains_x[2] = {0.00001, 0.1};
 static float gains_y[2] = {0.00001, 0.1};
-static float gains_2d[DDESTPAR_GAINS2DSIZE] = {
-	0.02,  0.0005, 0.0005, 0.0005, 0.0005,
-	0.02,  0.0005, 0.0005, 0.0005, 0.0005,
-	0.02,  0.0005, 0.0005, 0.0005, 0.0005,
-	0.02,  0.0005, 0.0005, 0.0005, 0.0005
+
+static float gains_alpha2d[DDESTPAR_ALPHA2DSIZE] = {
+	0.002, 0.002, 0.002, 0.002
+};
+
+static float gains_beta2d[DDESTPAR_BETA2DSIZE] = {
+	0.0005, 0.0005, 0.0005, 0.0005,
+	0.0005, 0.0005, 0.0005, 0.0005,
+	0.0005, 0.0005, 0.0005, 0.0005,
+	0.0005, 0.0005, 0.0005, 0.0005
 };
 
 // Initial Parameters
 static float alpha_xy_init = 0;
 static float beta_x_init = 1;
 static float beta_y_init = -1;
-static float alpha2d_init[DDESTPAR_ALPHA2DSIZE] = {-1, 0, 0, 0};
+static float alpha2d_init[DDESTPAR_ALPHA2DSIZE] = {-16, 0, 0, 0};
 static float beta2d_init[DDESTPAR_BETA2DSIZE] = {
 	5, 5, 5, 5,
 	-50, -50, 50, 50,
@@ -127,12 +132,12 @@ void estimatorDDSetparams(float ax, float bx, float ay, float by,
 		 par.alpha2d[i] = a2d[i];
 	}
 
-	for (int i = 0; i < DDESTPAR_ALPHA2DSIZE; i++) {
+	for (int i = 0; i < DDESTPAR_BETA2DSIZE; i++) {
 		 par.beta2d[i] = b2d[i];
 	}
 
 	par.alpha2dsize = DDESTPAR_ALPHA2DSIZE;
-	par.beta2dsize = DDESTPAR_ALPHA2DSIZE; 
+	par.beta2dsize = DDESTPAR_BETA2DSIZE; 
 
 	DDParamEstimator_SetParams(&ddparamestimator_, par);
 }
@@ -222,8 +227,9 @@ void estimatorDDInit(void) {
 	// Initialize the gains
 	DDParamEstimator_SetGains(&ddparamestimator_,
 			gains_x, gains_y,
-			gains_2d);
-};
+			gains_alpha2d,
+			gains_beta2d);
+}
 
 bool estimatorDDTest(void) {
 	return true;
@@ -233,11 +239,14 @@ void estimatorDD(state_t *state,
 		sensorData_t *sensors,
 		control_t *control,
 		const uint32_t tick) {
+	// Execute at 250 Hz
+	// This funciion is just updating the variables that will be logged
 	if (!RATE_DO_EXECUTE(RATE_250_HZ, tick)) {
 		return;
 	}
 
 	DDEstimator_GetState(&ddestimator_, state_vec);
+	/*
 	if (msg_counter % 300 == 0) {
 		DEBUG_PRINT("ATT %f %f %f\n",
 				(double)(state_vec[DDEST_ROLL] * 180.0f / M_PI_F),
@@ -249,6 +258,7 @@ void estimatorDD(state_t *state,
 				(double)state_vec[DDEST_Z]);
 
 	}
+	*/
 }
 
 
@@ -259,7 +269,7 @@ bool estimatorDD_Step(state_t *state,
 
 	// Update the gains
 	DDParamEstimator_SetGains(&ddparamestimator_, gains_x,
-			gains_y, gains_2d);
+			gains_y, gains_alpha2d, gains_beta2d);
 
 	// XXX Check if the state has been updated
 	updated = DDEstimator_Step(&ddestimator_);
@@ -335,33 +345,34 @@ float estimatorDD_GetTMeasTimespan() {
 
 
 
-PARAM_GROUP_START(estimatorDD)
+PARAM_GROUP_START(estimatorDD_par)
 	PARAM_ADD(PARAM_FLOAT, Kest_x, &gains_x[0])
 	PARAM_ADD(PARAM_FLOAT, Kest_x_d, &gains_x[1])
 	PARAM_ADD(PARAM_FLOAT, Kest_y, &gains_y[0])
 	PARAM_ADD(PARAM_FLOAT, Kest_y_d, &gains_y[1])
 
-	PARAM_ADD(PARAM_FLOAT, Kest_2d0, &gains_2d[0])
-	PARAM_ADD(PARAM_FLOAT, Kest_2d1, &gains_2d[1])
-	PARAM_ADD(PARAM_FLOAT, Kest_2d2, &gains_2d[2])
-	PARAM_ADD(PARAM_FLOAT, Kest_2d3, &gains_2d[3])
-	PARAM_ADD(PARAM_FLOAT, Kest_2d4, &gains_2d[4])
-	PARAM_ADD(PARAM_FLOAT, Kest_2d5, &gains_2d[5])
-	PARAM_ADD(PARAM_FLOAT, Kest_2d6, &gains_2d[6])
-	PARAM_ADD(PARAM_FLOAT, Kest_2d7, &gains_2d[7])
-	PARAM_ADD(PARAM_FLOAT, Kest_2d8, &gains_2d[8])
-	PARAM_ADD(PARAM_FLOAT, Kest_2d9, &gains_2d[9])
-	PARAM_ADD(PARAM_FLOAT, Kest_2d10, &gains_2d[10])
-	PARAM_ADD(PARAM_FLOAT, Kest_2d11, &gains_2d[11])
-	PARAM_ADD(PARAM_FLOAT, Kest_2d12, &gains_2d[12])
-	PARAM_ADD(PARAM_FLOAT, Kest_2d13, &gains_2d[13])
-	PARAM_ADD(PARAM_FLOAT, Kest_2d14, &gains_2d[14])
-	PARAM_ADD(PARAM_FLOAT, Kest_2d15, &gains_2d[15])
-	PARAM_ADD(PARAM_FLOAT, Kest_2d16, &gains_2d[16])
-	PARAM_ADD(PARAM_FLOAT, Kest_2d17, &gains_2d[17])
-	PARAM_ADD(PARAM_FLOAT, Kest_2d18, &gains_2d[18])
-	PARAM_ADD(PARAM_FLOAT, Kest_2d19, &gains_2d[19])
-PARAM_GROUP_STOP(estimatorDD)
+	PARAM_ADD(PARAM_FLOAT, Kest_alpha2d0, &gains_alpha2d[0])
+	PARAM_ADD(PARAM_FLOAT, Kest_alpha2d1, &gains_alpha2d[1])
+	PARAM_ADD(PARAM_FLOAT, Kest_alpha2d2, &gains_alpha2d[2])
+	PARAM_ADD(PARAM_FLOAT, Kest_alpha2d3, &gains_alpha2d[3])
+
+	PARAM_ADD(PARAM_FLOAT, Kest_beta2d0, &gains_beta2d[0])
+	PARAM_ADD(PARAM_FLOAT, Kest_beta2d1, &gains_beta2d[1])
+	PARAM_ADD(PARAM_FLOAT, Kest_beta2d2, &gains_beta2d[2])
+	PARAM_ADD(PARAM_FLOAT, Kest_beta2d3, &gains_beta2d[3])
+	PARAM_ADD(PARAM_FLOAT, Kest_beta2d4, &gains_beta2d[4])
+	PARAM_ADD(PARAM_FLOAT, Kest_beta2d5, &gains_beta2d[5])
+	PARAM_ADD(PARAM_FLOAT, Kest_beta2d6, &gains_beta2d[6])
+	PARAM_ADD(PARAM_FLOAT, Kest_beta2d7, &gains_beta2d[7])
+	PARAM_ADD(PARAM_FLOAT, Kest_beta2d8, &gains_beta2d[8])
+	PARAM_ADD(PARAM_FLOAT, Kest_beta2d9, &gains_beta2d[9])
+	PARAM_ADD(PARAM_FLOAT, Kest_beta2d10, &gains_beta2d[10])
+	PARAM_ADD(PARAM_FLOAT, Kest_beta2d11, &gains_beta2d[11])
+	PARAM_ADD(PARAM_FLOAT, Kest_beta2d12, &gains_beta2d[12])
+	PARAM_ADD(PARAM_FLOAT, Kest_beta2d13, &gains_beta2d[13])
+	PARAM_ADD(PARAM_FLOAT, Kest_beta2d14, &gains_beta2d[14])
+	PARAM_ADD(PARAM_FLOAT, Kest_beta2d15, &gains_beta2d[15])
+PARAM_GROUP_STOP(estimatorDD_par)
 
 
 

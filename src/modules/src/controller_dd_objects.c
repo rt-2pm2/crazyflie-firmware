@@ -31,9 +31,16 @@
 #include "debug.h"
 
 #define MAXTILT (3.0f * M_PI_F / 8.0f)
+#define MAXANGULARSPEED (10000.0f)
 
 
 // PRIVATE
+
+// Limit values
+float boundval(float input, float llim, float ulim) {
+	return fmaxf(fminf(input, ulim), llim);
+}
+
 // Split the setpoint in different components
 void setpoint2arrays(const setpoint_t* sp,
 		float xsp[2],
@@ -73,13 +80,19 @@ void state2arrays(const state_t* sp,
 	zest[1] = sp->velocity.z;
 
 	rollest[0] = sp->attitude.roll / 180.0f * M_PI_F;
-	rollest[1] = sp->attitudeRate.roll / 180.0f * M_PI_F;
+	rollest[1] = boundval(sp->attitudeRate.roll / 180.0f * M_PI_F,
+			-MAXANGULARSPEED,
+			MAXANGULARSPEED);
 
 	pitchest[0] = sp->attitude.pitch / 180.0f * M_PI_F;
-	pitchest[1] = sp->attitudeRate.pitch / 180.0f * M_PI_F;
+	pitchest[1] = boundval(sp->attitudeRate.pitch / 180.0f * M_PI_F,
+			-MAXANGULARSPEED,
+			MAXANGULARSPEED);
 
 	yawest[0] = sp->attitude.yaw / 180.0f * M_PI_F;
-	yawest[1] = sp->attitudeRate.yaw / 180.0f * M_PI_F;
+	yawest[1] = boundval(sp->attitudeRate.yaw / 180.0f * M_PI_F,
+			-MAXANGULARSPEED,
+			MAXANGULARSPEED);
 }
 
 void eval_pseudoinv(arm_matrix_instance_f32* dest, arm_matrix_instance_f32* src) {
@@ -226,11 +239,6 @@ void DDController_Step(DDController* pc,
 		1,
 		par->alpha2d};
 
-	// Create a copy of the beta, since the inverse call skrews up the source.
-	//float beta_copy[DDESTPAR_BETA2DSIZE];
-	//memcpy(beta_copy, par->beta2d, DDESTPAR_BETA2DSIZE * sizeof(float));
-	//
-
 	arm_matrix_instance_f32 Beta = {
 		DDCTRL_OUTPUTSIZE,
 		DDCTRL_OUTPUTSIZE,
@@ -238,7 +246,6 @@ void DDController_Step(DDController* pc,
 	
 	eval_pseudoinv(&pc->InvBeta, &Beta);
 
-	//arm_mat_inverse_f32(&Beta, &pc->InvBeta);
 	arm_mat_sub_f32(&pc->Phat, &Alpha, &pc->PhatMinusAlpha);
 	arm_mat_mult_f32(&pc->InvBeta, &pc->PhatMinusAlpha, &pc->Inputs);
 

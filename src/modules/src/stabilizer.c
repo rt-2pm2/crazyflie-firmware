@@ -57,7 +57,7 @@
 #include "controller_dd.h"
 
 static bool DDControllerStarted = false;
-static int DDControllerCounter = 3;
+static int DDControllerCounter = DDEST_BUFFERSIZE;
 
 static bool isInit;
 static bool emergencyStop = false;
@@ -302,27 +302,25 @@ static void stabilizerTask(void* param)
       controller(&control, &setpoint, &sensorData, &state, tick);
       
       if ((controllerType == ControllerTypeDD) && estimate_updated) {
-	if (!DDControllerStarted && setpoint.position.z > 0.01f) {
-		float initThrust = 0.8 * 65000;
-		control_t temp_c = {-2, 1, 5, initThrust};
-		temp_c.roll += DDControllerCounter;
-		powerDistribution(&temp_c);
-		motor_signals[0] = 0.8;
-		motor_signals[1] = 0.8;
-		motor_signals[2] = 0.8;
-		motor_signals[3] = 0.8;
-		if (DDControllerCounter-- < 0) {
-			 // not really random...
-			DDControllerStarted = true;
-		}
-	} else {
-		DDParams pp = estimatorDD_GetParam();
-		if (pp.valid) {
-			float dt = estimatorDD_GetTMeasTimespan();
-			controllerDD_Step(&state, &pp, dt);
-			controllerDD_GetMotorSignals(motor_signals);
-		}
-	}
+	      if (!DDControllerStarted && setpoint.position.z > 0.01f) {
+		      float initThrust = 1.0 * 65000;
+		      control_t temp_c = {0, 0, 0, initThrust};
+		      powerDistribution(&temp_c);
+		      motor_signals[0] = 1.0;
+		      motor_signals[1] = 1.0;
+		      motor_signals[2] = 1.0;
+		      motor_signals[3] = 1.0;
+		      if (DDControllerCounter-- <= 0) {
+			      DDControllerStarted = true;
+		      }
+	      } else {
+		      DDParams pp = estimatorDD_GetParam();
+		      if (pp.valid) {
+			      float dt = estimatorDD_GetTMeasTimespan();
+			      controllerDD_Step(&state, &pp, dt);
+			      controllerDD_GetMotorSignals(motor_signals);
+		      }
+	      }
       }
 
       checkEmergencyStopTimeout();

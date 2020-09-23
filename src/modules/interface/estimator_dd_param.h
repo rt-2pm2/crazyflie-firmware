@@ -74,7 +74,7 @@ struct DDParamEstimator1D {
 // Public Methods
 void DDParamEstimator1D_Init(DDParamEstimator1D* pm);
 void DDParamEstimator1D_Step(DDParamEstimator1D* pm,
-		float state_acc,float input, float T);
+		float state_acc, float input, float T);
 void DDParamEstimator1D_SetGains(DDParamEstimator1D* pm,
 		const float gains[2]);
 void DDParamEstimator1D_SetBetaBounds(DDParamEstimator1D* pm,
@@ -87,14 +87,15 @@ void DDParamEstimator1D_SetParams(DDParamEstimator1D* pm,
 
 
 /**
- * Data structure for the parameters 
+ * Data structure for the 2D parameter estimator 
  */
 typedef struct DDParamEstimator2D DDParamEstimator2D;
 struct DDParamEstimator2D {
 	float alpha[DDESTPAR_ALPHA2DSIZE];
 	float beta[DDESTPAR_BETA2DSIZE];
 
-	float est_gains[DDESTPAR_GAINS2DSIZE];
+	float est_alpha2dgains[DDESTPAR_ALPHA2DSIZE];
+	float est_beta2dgains[DDESTPAR_BETA2DSIZE];
 
 	float beta_lbounds[DDESTPAR_BETA2DSIZE];
 	float beta_ubounds[DDESTPAR_BETA2DSIZE];
@@ -114,22 +115,41 @@ struct DDParamEstimator2D {
 	bool initialized;
 };
 // Public Methods
+/**
+ * Initialization and reset (Not changing the gains)
+ */
 void DDParamEstimator2D_Init(DDParamEstimator2D* pm);
 void DDParamEstimator2D_Reset(DDParamEstimator2D* pm);
+/**
+ * Estimation step
+ */
 void DDParamEstimator2D_Step(DDParamEstimator2D* pm,
-		float input[DDESTPAR_INPUT2DSIZE],
-		float state[DDESTPAR_STATE2DSIZE], float T);
-void DDParamEstimator2D_SetGains(DDParamEstimator2D* pm,
-		const float gains[DDESTPAR_GAINS2DSIZE]);
+		float state[DDESTPAR_STATE2DSIZE],
+		const float input[DDESTPAR_INPUT2DSIZE],
+		float T);
+/**
+ * Set estimator gains
+ */
+void DDParamEstimator2D_SetGains(DDParamEstimator2D* pe,
+		const float alpha_gains[DDESTPAR_ALPHA2DSIZE],
+		const float beta_gains[DDESTPAR_BETA2DSIZE]);
+/**
+ * Get estimated params
+ */
 void DDParamEstimator2D_GetParams(DDParamEstimator2D* pm,
 		float alpha[DDESTPAR_ALPHA2DSIZE],
 		float beta[DDESTPAR_BETA2DSIZE]);
+/**
+ * Set params
+ */
 void DDParamEstimator2D_SetParams(DDParamEstimator2D* pm,
 		const float alpha[DDESTPAR_ALPHA2DSIZE],
 		const float beta[DDESTPAR_BETA2DSIZE]);
 
+
+
 /**
- * Parameter Estimator data structure
+ * Parameter Estimator FULL 
  */
 typedef struct DDParamEstimator DDParamEstimator;
 struct DDParamEstimator {
@@ -160,9 +180,9 @@ void DDParamEstimator_Step(DDParamEstimator* pe,
  * Set the parameter estimators gains
  */
 void DDParamEstimator_SetGains(DDParamEstimator* pe,
-		float gains_x[2],
-		float gains_y[2],
-		float gains_2d[DDESTPAR_GAINS2DSIZE]
+		float gains_x[2], float gains_y[2],
+		float gains_alpha2d[DDESTPAR_ALPHA2DSIZE],
+		float gains_beta2d[DDESTPAR_BETA2DSIZE]
 		);
 
 
