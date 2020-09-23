@@ -342,38 +342,33 @@ float estimatorDD_GetTMeasTimespan() {
 
 
 
-
-
-
 PARAM_GROUP_START(estimatorDD_par)
-	PARAM_ADD(PARAM_FLOAT, Kest_x, &gains_x[0])
-	PARAM_ADD(PARAM_FLOAT, Kest_x_d, &gains_x[1])
-	PARAM_ADD(PARAM_FLOAT, Kest_y, &gains_y[0])
-	PARAM_ADD(PARAM_FLOAT, Kest_y_d, &gains_y[1])
-
-	PARAM_ADD(PARAM_FLOAT, Kest_alpha2d0, &gains_alpha2d[0])
-	PARAM_ADD(PARAM_FLOAT, Kest_alpha2d1, &gains_alpha2d[1])
-	PARAM_ADD(PARAM_FLOAT, Kest_alpha2d2, &gains_alpha2d[2])
-	PARAM_ADD(PARAM_FLOAT, Kest_alpha2d3, &gains_alpha2d[3])
-
-	PARAM_ADD(PARAM_FLOAT, Kest_beta2d0, &gains_beta2d[0])
-	PARAM_ADD(PARAM_FLOAT, Kest_beta2d1, &gains_beta2d[1])
-	PARAM_ADD(PARAM_FLOAT, Kest_beta2d2, &gains_beta2d[2])
-	PARAM_ADD(PARAM_FLOAT, Kest_beta2d3, &gains_beta2d[3])
-	PARAM_ADD(PARAM_FLOAT, Kest_beta2d4, &gains_beta2d[4])
-	PARAM_ADD(PARAM_FLOAT, Kest_beta2d5, &gains_beta2d[5])
-	PARAM_ADD(PARAM_FLOAT, Kest_beta2d6, &gains_beta2d[6])
-	PARAM_ADD(PARAM_FLOAT, Kest_beta2d7, &gains_beta2d[7])
-	PARAM_ADD(PARAM_FLOAT, Kest_beta2d8, &gains_beta2d[8])
-	PARAM_ADD(PARAM_FLOAT, Kest_beta2d9, &gains_beta2d[9])
-	PARAM_ADD(PARAM_FLOAT, Kest_beta2d10, &gains_beta2d[10])
-	PARAM_ADD(PARAM_FLOAT, Kest_beta2d11, &gains_beta2d[11])
-	PARAM_ADD(PARAM_FLOAT, Kest_beta2d12, &gains_beta2d[12])
-	PARAM_ADD(PARAM_FLOAT, Kest_beta2d13, &gains_beta2d[13])
-	PARAM_ADD(PARAM_FLOAT, Kest_beta2d14, &gains_beta2d[14])
-	PARAM_ADD(PARAM_FLOAT, Kest_beta2d15, &gains_beta2d[15])
+	PARAM_ADD(PARAM_FLOAT, K_x, &gains_x[0])
+	PARAM_ADD(PARAM_FLOAT, K_x_d, &gains_x[1])
+	PARAM_ADD(PARAM_FLOAT, K_y, &gains_y[0])
+	PARAM_ADD(PARAM_FLOAT, K_y_d, &gains_y[1])
+	PARAM_ADD(PARAM_FLOAT, K_a2d0, &gains_alpha2d[0])
+	PARAM_ADD(PARAM_FLOAT, K_a2d1, &gains_alpha2d[1])
+	PARAM_ADD(PARAM_FLOAT, K_a2d2, &gains_alpha2d[2])
+	PARAM_ADD(PARAM_FLOAT, K_a2d3, &gains_alpha2d[3])
+	//
+	PARAM_ADD(PARAM_FLOAT, K_b2d0, &gains_beta2d[0])
+	PARAM_ADD(PARAM_FLOAT, K_b2d1, &gains_beta2d[1])
+	PARAM_ADD(PARAM_FLOAT, K_b2d2, &gains_beta2d[2])
+	PARAM_ADD(PARAM_FLOAT, K_b2d3, &gains_beta2d[3])
+	PARAM_ADD(PARAM_FLOAT, K_b2d4, &gains_beta2d[4])
+	PARAM_ADD(PARAM_FLOAT, K_b2d5, &gains_beta2d[5])
+	PARAM_ADD(PARAM_FLOAT, K_b2d6, &gains_beta2d[6])
+	PARAM_ADD(PARAM_FLOAT, K_b2d7, &gains_beta2d[7])
+	PARAM_ADD(PARAM_FLOAT, K_b2d8, &gains_beta2d[8])
+	PARAM_ADD(PARAM_FLOAT, K_b2d9, &gains_beta2d[9])
+	PARAM_ADD(PARAM_FLOAT, K_b2d10, &gains_beta2d[10])
+	PARAM_ADD(PARAM_FLOAT, K_b2d11, &gains_beta2d[11])
+	PARAM_ADD(PARAM_FLOAT, K_b2d12, &gains_beta2d[12])
+	PARAM_ADD(PARAM_FLOAT, K_b2d13, &gains_beta2d[13])
+	PARAM_ADD(PARAM_FLOAT, K_b2d14, &gains_beta2d[14])
+	PARAM_ADD(PARAM_FLOAT, K_b2d15, &gains_beta2d[15])
 PARAM_GROUP_STOP(estimatorDD_par)
-
 
 
 LOG_GROUP_START(estimatorDD_log)
@@ -383,9 +378,6 @@ LOG_GROUP_START(estimatorDD_log)
 	LOG_ADD(LOG_FLOAT, roll, &state_vec[DDEST_ROLL])
 	LOG_ADD(LOG_FLOAT, pitch, &state_vec[DDEST_PITCH])
 	LOG_ADD(LOG_FLOAT, yaw, &state_vec[DDEST_YAW])
-	LOG_ADD(LOG_FLOAT, vroll, &state_vec[DDEST_VROLL])
-	LOG_ADD(LOG_FLOAT, vpitch, &state_vec[DDEST_VPITCH])
-	LOG_ADD(LOG_FLOAT, vyaw, &state_vec[DDEST_VYAW])
 LOG_GROUP_STOP(estimatorDD_log)
 
 LOG_GROUP_START(estParamDD_log)
