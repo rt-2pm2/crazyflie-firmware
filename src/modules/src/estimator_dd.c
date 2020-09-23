@@ -144,52 +144,11 @@ void estimatorDDSetparams(float ax, float bx, float ay, float by,
 
 // ===================================================================
 // 				DDEstimator
-//
-//
-// This is the data structure containing the state of the vehicle that 
-// should be filled by the estimator.
-//
-// state_t  {
-//	    attitude_t attitude; (In odd CF2 frame)
-//	    quaternion_t attitudeQuaternion;
-//	    point_t position;         // m
-//	    velocity_t velocity;      // m/s
-//	    acc_t acc;                // Gs (acc.z - gravity)
-// }
-//
-// attitude_t = {
-// 	uint32_t timestamp
-// 	float roll;
-// 	float pitch;
-// 	float yaw;
-// }
-//
-// quaternion_t {
-// 	uint32_t timestamp
-// 	float x;
-// 	float y;
-// 	float z;
-// 	float w;
-// }
-//
-// point_t = velocity_t = acc_t {
-// 	uint32_t timestamp
-// 	float x;
-// 	float y;
-// 	float z;
-// }
+
 
 
 // ==================================================================
 // 				PRIVATE
-float preproc_angle(float angle) {
-	float processed = 0;
-
-	processed = -angle/((angle - M_PI_F) * (angle + M_PI_F));
-
-	return processed;
-}
-
 void attitude_preprocessing(float rpy_dest[3], const quaternion_t q) {
 
 	struct quat q_src = {q.x, q.y, q.z, q.w}; 
@@ -241,7 +200,7 @@ void estimatorDD(state_t *state,
 		const uint32_t tick) {
 	// Execute at 250 Hz
 	// This funciion is just updating the variables that will be logged
-	if (!RATE_DO_EXECUTE(RATE_250_HZ, tick)) {
+	if (!RATE_DO_EXECUTE(RATE_100_HZ, tick)) {
 		return;
 	}
 

@@ -85,16 +85,14 @@ void DDParamEstimator1D_Step(DDParamEstimator1D* pe,
 
 void DDParamEstimator1D_SetGains(DDParamEstimator1D* pe,
 		const float gains[2]) {
-	int i = 0;
-	for (i = 0; i < 2; i++) {
+	for (int i = 0; i < 2; i++) {
 		pe->est_gains[i] = gains[i];
 	}
 }
 
 void DDParamEstimator1D_SetBetaBounds(DDParamEstimator1D* pe,
 		const float bbounds[2]) {
-	int i = 0;
-	for (i = 0; i < 2; i++) {
+	for (int i = 0; i < 2; i++) {
 		pe->beta_bounds[i] = bbounds[i];
 	}
 }
@@ -331,14 +329,14 @@ void DDParamEstimator_Step(DDParamEstimator* pe, state_t* ps,
 	if (pe->initialized) {
 		// Estimate the paremeters on X
 		float state_accx = ps->acc.x;
-		float input_x = ps->attitude.pitch; 
+		float input_x = ps->attitude.pitch / 180.0f * M_PI_F; // XXX This are in deg because of CF.... 
 		DDParamEstimator1D_Step(&pe->paramest1D[0],
 				state_accx,
 				input_x, deltaT);
 
 		// Estimate the paremeters on Y
 		float state_accy = ps->acc.y;
-		float input_y = ps->attitude.roll;
+		float input_y = ps->attitude.roll / 180.0f * M_PI_F; // XXX This are in deg because of CF.... 
 		DDParamEstimator1D_Step(&pe->paramest1D[1],
 				state_accy,
 				input_y, deltaT);
@@ -346,9 +344,9 @@ void DDParamEstimator_Step(DDParamEstimator* pe, state_t* ps,
 		// Estimate the paremeters on the rest
 		float state_acczatt[DDESTPAR_STATE2DSIZE];
 		state_acczatt[0] = ps->acc.z;
-		state_acczatt[1] = ps->attitudeAcc.roll;; 
-		state_acczatt[2] = ps->attitudeAcc.pitch;
-		state_acczatt[3] = ps->attitudeAcc.yaw;
+		state_acczatt[1] = ps->attitudeAcc.roll / 180.0f * M_PI_F;; 
+		state_acczatt[2] = ps->attitudeAcc.pitch / 180.0f * M_PI_F;;
+		state_acczatt[3] = ps->attitudeAcc.yaw / 180.0f * M_PI_F;;
 
 		DDParamEstimator2D_Step(&pe->paramest2D, state_acczatt,
 				input, deltaT);

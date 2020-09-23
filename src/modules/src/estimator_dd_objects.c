@@ -40,8 +40,7 @@ SOFTWARE.
 // DDMEAS DATA STRUCTURE
 //
 void DDMeas_Init(DDMeas* pm) {
-	int i;
-	for (i = 0; i < DDEST_BUFFERSIZE; i++) {
+	for (int i = 0; i < DDEST_BUFFERSIZE; i++) {
 		pm->meas[i] = 0;
 		pm->sampleT[i] = 0;
 	}
@@ -52,8 +51,7 @@ void DDMeas_Init(DDMeas* pm) {
 }
 
 void DDMeas_AddMeas(DDMeas* pm, float m, float stamp) {
-	int index = 0;
-for (index = 1; index < DDEST_BUFFERSIZE; index++) {
+	for (int index = 1; index < DDEST_BUFFERSIZE; index++) {
 		pm->meas[DDEST_BUFFERSIZE-index] = 
 			pm->meas[DDEST_BUFFERSIZE-index-1];
 		pm->sampleT[DDEST_BUFFERSIZE-index] =
@@ -67,8 +65,7 @@ for (index = 1; index < DDEST_BUFFERSIZE; index++) {
 
 void DDMeas_GetMeas(DDMeas* pm, float m[DDEST_BUFFERSIZE],
 		float t[DDEST_BUFFERSIZE]) {
-	int i = 0;	
-	for (i = 0; i < DDEST_BUFFERSIZE; i++) {
+	for (int i = 0; i < DDEST_BUFFERSIZE; i++) {
 		m[i] = pm->meas[i];
 		t[i] = pm->sampleT[i];
 	}
@@ -283,8 +280,7 @@ void DDEstimator_AddMeas(DDEstimator* pe,
 		DDEstimator_Init(pe);
 	}
 
-	int i;
-	for (i = 0; i < DDEST_NUMOFCHANNELS; i++) {
+	for (int i = 0; i < DDEST_NUMOFCHANNELS; i++) {
 		DDEstimator1D_AddMeas(&pe->estimators[i], m[i], tstamp);
 	}
 
@@ -324,13 +320,10 @@ bool DDEstimator_Step(DDEstimator* pe) {
 		if (mrt <= pe->sensors_mrt) {
 			return false;
 		}
-		pe->sensors_mrt =  mrt;
+		pe->sensors_mrt = mrt;
 
 		// Prepare for the estimation step 
 		DDObs_Update(&pe->obs_data, timestamps);
-
-		
-
 
 		// Run the estimation on each channel
 		for (int i = 0; i < DDEST_NUMOFCHANNELS; i++) {

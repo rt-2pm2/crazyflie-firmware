@@ -250,10 +250,10 @@ void DDController_Step(DDController* pc,
 	arm_mat_mult_f32(&pc->InvBeta, &pc->PhatMinusAlpha, &pc->Inputs);
 
 	for(int i = 0; i < DDCTRL_OUTPUTSIZE; i++) {
-		if(pc->inputs[i]>1){
-			pc->inputs[i] = 1;
-		} else if(pc->inputs[i]<0){
-			pc->inputs[i] = 0;
+		if(pc->inputs[i] > 1.0f){
+			pc->inputs[i] = 1.0f;
+		} else if(pc->inputs[i] < 0.0f){
+			pc->inputs[i] = 0.0f;
 		}
 	}
 }
@@ -285,7 +285,7 @@ float DDController_lin2angle(DDController* pc,
 	
 	// Compute the u to get the acceleration along this axis
 	float phix = (-alpha + acc_dem) / beta;
-	phix = fmaxf(fminf(phix, MAXTILT), -MAXTILT);
+	phix = boundval(phix, -MAXTILT, MAXTILT);
 
 	// That is related to the angle
 	float ex[2] = {
