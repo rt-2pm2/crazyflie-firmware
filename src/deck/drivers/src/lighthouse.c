@@ -69,8 +69,6 @@ static const DeckDriver lighthouse_deck = {
 
 DECK_DRIVER(lighthouse_deck);
 
-/*
 PARAM_GROUP_START(deck)
 PARAM_ADD(PARAM_UINT8 | PARAM_RONLY, bdLighthouse4, &isInit)
 PARAM_GROUP_STOP(deck)
-*/
