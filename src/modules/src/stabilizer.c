@@ -56,6 +56,7 @@
 #include "estimator_dd.h"
 #include "controller_dd.h"
 
+
 static bool DDControllerStarted = false;
 static int DDControllerCounter = DDEST_BUFFERSIZE;
 
@@ -280,7 +281,7 @@ static void stabilizerTask(void* param)
       }
       // allow to update controller dynamically
       if (getControllerType() != controllerType) {
-        controllerInit(controllerType);
+	controllerInit(controllerType);
         controllerType = getControllerType();
       }
 
@@ -299,28 +300,48 @@ static void stabilizerTask(void* param)
 
       sitAwUpdateSetpoint(&setpoint, &sensorData, &state);
 
-      controller(&control, &setpoint, &sensorData, &state, tick);
-      
-      if ((controllerType == ControllerTypeDD) && estimate_updated) {
-	      if (!DDControllerStarted && setpoint.position.z > 0.01f) {
-		      float initThrust = 1.0 * 65000;
-		      control_t temp_c = {0, 0, 0, initThrust};
-		      powerDistribution(&temp_c);
-		      motor_signals[0] = 1.0;
-		      motor_signals[1] = 1.0;
-		      motor_signals[2] = 1.0;
-		      motor_signals[3] = 1.0;
-		      if (DDControllerCounter-- <= 0) {
-			      DDControllerStarted = true;
-		      }
-	      } else {
-		      DDParams pp = estimatorDD_GetParam();
-		      if (pp.valid) {
-			      float dt = estimatorDD_GetTMeasTimespan();
-			      controllerDD_Step(&state, &pp, dt);
-			      controllerDD_GetMotorSignals(motor_signals);
+
+      // START Control ======================================================
+      if (controllerType != ControllerTypeExt) {
+	      controller(&control, &setpoint, &sensorData, &state, tick);
+	      if ((controllerType == ControllerTypeDD) && estimate_updated) {
+		      if (!DDControllerStarted && setpoint.position.z > 0.01f) {
+			      float initThrust = 1.0 * 65000;
+			      control_t temp_c = {0, 0, 0, initThrust};
+			      powerDistribution(&temp_c);
+			      motor_signals[0] = 1.0;
+			      motor_signals[1] = 1.0;
+			      motor_signals[2] = 1.0;
+			      motor_signals[3] = 1.0;
+			      if (DDControllerCounter-- <= 0) {
+				      DDControllerStarted = true;
+			      }
+		      } else {
+			      DDParams pp = estimatorDD_GetParam();
+			      if (pp.valid) {
+				      float dt = estimatorDD_GetTMeasTimespan();
+				      controllerDD_Step(&state, &pp, dt);
+				      controllerDD_GetMotorSignals(motor_signals);
+			      }
 		      }
 	      }
+      } else {
+	      // In case of external controller just ask to be where you are 
+	      // so that in case of switching back the setpoint is defined.
+	      setpoint.timestamp = xTaskGetTickCount();	     
+	      setpoint.position = state.position;
+	      setpoint.velocity.timestamp = setpoint.timestamp;
+	      setpoint.velocity.x = 0;
+	      setpoint.velocity.y = 0;
+	      setpoint.velocity.z = 0;
+	      setpoint.mode.x = modeDisable;
+	      setpoint.mode.y = modeDisable;
+	      setpoint.mode.roll = modeAbs;
+	      setpoint.mode.pitch = modeAbs;
+	      setpoint.mode.yaw = modeVelocity;
+	      setpoint.attitude.roll = 0;
+	      setpoint.attitude.pitch = 0;
+	      setpoint.attitudeRate.yaw = 0;
       }
 
       checkEmergencyStopTimeout();
@@ -328,10 +349,12 @@ static void stabilizerTask(void* param)
       if (emergencyStop) {
         powerStop();
       } else {
-	      if (controllerType != ControllerTypeDD) {
+	      if (!((controllerType == ControllerTypeDD) || (controllerType == ControllerTypeExt))) {
 		      powerDistribution(&control);
 	      }
       }
+      
+      // END Control ======================================================
 
       // Log data to uSD card if configured
       if (   usddeckLoggingEnabled()
@@ -595,7 +618,7 @@ LOG_ADD(LOG_FLOAT, motorVarYM4, &accVarY[3])
 LOG_ADD(LOG_UINT8, motorPass, &motorPass)
 LOG_ADD(LOG_UINT16, motorTestCount, &motorTestCount)
 LOG_GROUP_STOP(health)
-/*
+
 LOG_GROUP_START(ctrltarget)
 LOG_ADD(LOG_FLOAT, x, &setpoint.position.x)
 LOG_ADD(LOG_FLOAT, y, &setpoint.position.y)
@@ -628,7 +651,6 @@ LOG_ADD(LOG_INT16, ay, &setpointCompressed.ay)
 LOG_ADD(LOG_INT16, az, &setpointCompressed.az)
 LOG_GROUP_STOP(ctrltargetZ)
 
-*/
 LOG_GROUP_START(stabilizer)
 LOG_ADD(LOG_FLOAT, roll, &state.attitude.roll)
 LOG_ADD(LOG_FLOAT, pitch, &state.attitude.pitch)

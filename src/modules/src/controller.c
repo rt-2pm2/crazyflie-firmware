@@ -8,6 +8,8 @@
 #include "controller_indi.h"
 #include "controller_dd.h"
 
+#include "controller_ext.h"
+
 #define DEFAULT_CONTROLLER ControllerTypePID
 static ControllerType currentController = ControllerTypeAny;
 
@@ -26,6 +28,7 @@ static ControllerFcns controllerFunctions[] = {
   {.init = controllerMellingerInit, .test = controllerMellingerTest, .update = controllerMellinger, .name = "Mellinger"},
   {.init = controllerINDIInit, .test = controllerINDITest, .update = controllerINDI, .name = "INDI"},
   {.init = controllerDDInit, .test = controllerDDTest, .update = controllerDD, .name = "DD"},
+  {.init = controllerEXTInit, .test = controllerEXTTest, .update = controllerEXT, .name = "EXT"}
 };
 
 

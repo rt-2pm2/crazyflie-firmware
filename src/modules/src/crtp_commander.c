@@ -32,10 +32,13 @@
 #include "commander.h"
 #include "crtp.h"
 
+#include "debug.h"
+
 
 static bool isInit;
 
 static void commanderCrtpCB(CRTPPacket* pk);
+static void commanderCrtpCBPWM(CRTPPacket* pk);
 
 void crtpCommanderInit(void)
 {
@@ -46,6 +49,7 @@ void crtpCommanderInit(void)
   crtpInit();
   crtpRegisterPortCB(CRTP_PORT_SETPOINT, commanderCrtpCB);
   crtpRegisterPortCB(CRTP_PORT_SETPOINT_GENERIC, commanderCrtpCB);
+  crtpRegisterPortCB(CRTP_PORT_SETPOINT_LL, commanderCrtpCBPWM);
   isInit = true;
 }
 
@@ -133,3 +137,11 @@ static void commanderCrtpCB(CRTPPacket* pk)
     }
   }
 }
+
+
+static void commanderCrtpCBPWM(CRTPPacket* pk) {
+	if (pk->port == CRTP_PORT_SETPOINT_LL) {
+		crtpCommanderPWMDecodeSetpoint(pk);
+	}
+}
+
