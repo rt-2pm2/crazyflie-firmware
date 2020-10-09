@@ -43,7 +43,7 @@ SOFTWARE.
 //
 void DDParamEstimator1D_Init(DDParamEstimator1D* pe) {
 	pe->alpha = 0.0;
-	pe->beta = 0.0;
+	pe->beta = 1.0;
 	pe->initialized = true;
 }
 
