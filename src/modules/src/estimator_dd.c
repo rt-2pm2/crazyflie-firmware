@@ -264,7 +264,6 @@ bool estimatorDDEnqueuePose(const poseMeasurement_t *pos) {
 	meas[4] = (rpy[1]);
 	meas[5] = (rpy[2]);
 
-	// XXX I should protect this with mutex
 	DDEstimator_AddMeas(&ddestimator_, meas, tstamp_s);
 
 	return true;

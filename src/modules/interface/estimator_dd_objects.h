@@ -164,7 +164,6 @@ struct DDEstimator {
 	SemaphoreHandle_t dataMutex;
  	StaticSemaphore_t dataMutexBuffer;
 
-
 	// Measurement Data
 	DDEstimator1D estimators[DDEST_NUMOFCHANNELS];
 

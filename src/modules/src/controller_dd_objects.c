@@ -29,12 +29,14 @@
 #include "stabilizer_types.h"
 #include "controller_dd_objects.h"
 #include "debug.h"
+#include "log.h"
 
 #define MAXTILT (3.0f * M_PI_F / 8.0f)
 #define MAXANGULARSPEED (10000.0f)
 
 
 // PRIVATE
+float phat_log[4];
 
 // Limit values
 float boundval(float input, float llim, float ulim) {
@@ -233,6 +235,10 @@ void DDController_Step(DDController* pc,
 	pc->phat[1] = phatroll;
 	pc->phat[2] = phatpitch;
 	pc->phat[3] = phatyaw;
+
+	for (int i = 0; i < 4; i++) {
+		phat_log[i] = pc->phat[i];
+	}
 	
 	arm_matrix_instance_f32 Alpha = {
 		DDCTRL_OUTPUTSIZE,
@@ -308,3 +314,12 @@ void DDController_getControls(DDController* pc,
 		m_ctrls[i] = pc->inputs[i];
 	}
 }
+
+
+LOG_GROUP_START(ctrlDDExtra_log)
+	LOG_ADD(LOG_FLOAT, phat_z, &phat_log[0])
+	LOG_ADD(LOG_FLOAT, phat_r, &phat_log[1])
+	LOG_ADD(LOG_FLOAT, phat_p, &phat_log[2])
+	LOG_ADD(LOG_FLOAT, phat_y, &phat_log[3])
+LOG_GROUP_STOP(ctrlDDExtra_log)
+

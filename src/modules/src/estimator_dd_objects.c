@@ -155,12 +155,20 @@ void DDObs_Update(DDObs* po, const float tstamps[DDEST_BUFFERSIZE]) {
 	// Update the DeltaT vector in the structure
 	for (i = 0; i < DDEST_BUFFERSIZE; i++) {
 		float dT = tstamps[0] - tstamps[i];
+		if (dT < 0 || isnan(dT) || isinf(dT)) {
+			DEBUG_PRINT("Detected misaligned data!\n");
+		}
 		po->deltaT[i] = dT;
 	}
 
 	// Fill the Obs Matrix
+	float old = po->deltaT[0];
 	for (i = 0; i < DDEST_BUFFERSIZE; i++) {
 		float T = po->deltaT[i];
+		if (T < old) {
+			DEBUG_PRINT("Detected misaligned data!\n");
+		}
+		old = T;
 		po->Obs[i * DDEST_STATESIZE1D] = 1;
 		po->Obs[(i * DDEST_STATESIZE1D) + 1] = -T;
 		po->Obs[(i * DDEST_STATESIZE1D) + 2] = 0.5f * (T * T);
@@ -252,7 +260,7 @@ void DDEstimator_Init(DDEstimator* pe) {
 	pe->msg_counter = 0;
 	pe->ready = false;
 
-	pe->dataMutex = xSemaphoreCreateMutexStatic(&pe->dataMutexBuffer);
+	pe->dataMutex = xSemaphoreCreateMutex();
 
 	pe->initialized = true;
 }
@@ -265,11 +273,19 @@ void DDEstimator_AddMeas(DDEstimator* pe,
 		const float m[DDEST_NUMOFCHANNELS],
 		float tstamp) {
 
-	xSemaphoreTake(pe->dataMutex, portMAX_DELAY);
-
 	if (!pe->initialized) {
 		DEBUG_PRINT("DDEstimator Not Initialized!\n");
 		DDEstimator_Init(pe);
+	}
+
+	if (pe->dataMutex != NULL){
+		if (!xSemaphoreTake(pe->dataMutex, 1)) {
+			DEBUG_PRINT("Semaphore not taken!\n");
+			return;
+		}
+	} else {
+		DEBUG_PRINT("Semaphore not ready!\n");
+		return;
 	}
 
 	for (int i = 0; i < DDEST_NUMOFCHANNELS; i++) {
@@ -281,9 +297,7 @@ void DDEstimator_AddMeas(DDEstimator* pe,
 	if (pe->msg_counter > DDEST_BUFFERSIZE) {
 		pe->ready = true;
 	}
-
 	xSemaphoreGive(pe->dataMutex);
-
 }
 
 void DDEstimator_UpdateCtrl(DDEstimator* pe, float m[DDEST_NUMOFINPUTS]) {
