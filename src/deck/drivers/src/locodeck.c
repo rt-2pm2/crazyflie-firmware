@@ -513,6 +513,7 @@ PARAM_GROUP_START(deck)
 PARAM_ADD(PARAM_UINT8 | PARAM_RONLY, bcDWM1000, &isInit)
 PARAM_GROUP_STOP(deck)
 
+/*
 LOG_GROUP_START(ranging)
 LOG_ADD(LOG_UINT16, state, &algoOptions.rangingState)
 LOG_GROUP_STOP(ranging)
@@ -522,6 +523,7 @@ LOG_ADD(LOG_UINT8, mode, &algoOptions.currentRangingMode)
 STATS_CNT_RATE_LOG_ADD(spiWr, &spiWriteCount)
 STATS_CNT_RATE_LOG_ADD(spiRe, &spiReadCount)
 LOG_GROUP_STOP(loco)
+*/
 
 PARAM_GROUP_START(loco)
 PARAM_ADD(PARAM_UINT8, mode, &algoOptions.userRequestedMode)

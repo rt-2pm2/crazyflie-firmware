@@ -300,48 +300,28 @@ static void stabilizerTask(void* param)
 
       sitAwUpdateSetpoint(&setpoint, &sensorData, &state);
 
-
       // START Control ======================================================
-      if (controllerType != ControllerTypeExt) {
-	      controller(&control, &setpoint, &sensorData, &state, tick);
-	      if ((controllerType == ControllerTypeDD) && estimate_updated) {
-		      if (!DDControllerStarted && setpoint.position.z > 0.01f) {
-			      float initThrust = 1.0 * 65000;
-			      control_t temp_c = {0, 0, 0, initThrust};
-			      powerDistribution(&temp_c);
-			      motor_signals[0] = 1.0;
-			      motor_signals[1] = 1.0;
-			      motor_signals[2] = 1.0;
-			      motor_signals[3] = 1.0;
-			      if (DDControllerCounter-- <= 0) {
-				      DDControllerStarted = true;
-			      }
-		      } else {
-			      DDParams pp = estimatorDD_GetParam();
-			      if (pp.valid) {
-				      float dt = estimatorDD_GetTMeasTimespan();
-				      controllerDD_Step(&state, &pp, dt);
-				      controllerDD_GetMotorSignals(motor_signals);
-			      }
+      controller(&control, &setpoint, &sensorData, &state, tick);
+      if ((controllerType == ControllerTypeDD) && estimate_updated) {
+	      if (!DDControllerStarted && setpoint.position.z > 0.01f) {
+		      float initThrust = 1.0 * 65000;
+		      control_t temp_c = {0, 0, 0, initThrust};
+		      powerDistribution(&temp_c);
+		      motor_signals[0] = 1.0;
+		      motor_signals[1] = 1.0;
+		      motor_signals[2] = 1.0;
+		      motor_signals[3] = 1.0;
+		      if (DDControllerCounter-- <= 0) {
+			      DDControllerStarted = true;
+		      }
+	      } else {
+		      DDParams pp = estimatorDD_GetParam();
+		      if (pp.valid) {
+			      float dt = estimatorDD_GetTMeasTimespan();
+			      controllerDD_Step(&state, &pp, dt);
+			      controllerDD_GetMotorSignals(motor_signals);
 		      }
 	      }
-      } else {
-	      // In case of external controller just ask to be where you are 
-	      // so that in case of switching back the setpoint is defined.
-	      setpoint.timestamp = xTaskGetTickCount();	     
-	      setpoint.position = state.position;
-	      setpoint.velocity.timestamp = setpoint.timestamp;
-	      setpoint.velocity.x = 0;
-	      setpoint.velocity.y = 0;
-	      setpoint.velocity.z = 0;
-	      setpoint.mode.x = modeDisable;
-	      setpoint.mode.y = modeDisable;
-	      setpoint.mode.roll = modeAbs;
-	      setpoint.mode.pitch = modeAbs;
-	      setpoint.mode.yaw = modeVelocity;
-	      setpoint.attitude.roll = 0;
-	      setpoint.attitude.pitch = 0;
-	      setpoint.attitudeRate.yaw = 0;
       }
 
       checkEmergencyStopTimeout();

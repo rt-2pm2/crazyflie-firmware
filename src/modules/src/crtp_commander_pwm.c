@@ -73,8 +73,8 @@ void crtpCommanderPWMDecodeSetpoint(CRTPPacket *pk)
 }
 
 LOG_GROUP_START(external_pwm)
-LOG_ADD(PARAM_UINT32, motorPower0, &motorPower[0])
-LOG_ADD(PARAM_UINT32, motorPower1, &motorPower[1])
-LOG_ADD(PARAM_UINT32, motorPower2, &motorPower[2])
-LOG_ADD(PARAM_UINT32, motorPower3, &motorPower[3])
+LOG_ADD(LOG_UINT32, mPower0, &motorPower[0])
+LOG_ADD(LOG_UINT32, mPower1, &motorPower[1])
+LOG_ADD(LOG_UINT32, mPower2, &motorPower[2])
+LOG_ADD(LOG_UINT32, mPower3, &motorPower[3])
 LOG_GROUP_STOP(external_pwm)

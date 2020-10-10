@@ -33,24 +33,24 @@
 // STATIC VARIABLES
 
 // Parameter Estimator Gains
-static float gains_x[2] = {0.00001, 0.1};
-static float gains_y[2] = {0.00001, 0.1};
+static float gains_x[2] = {0.0001, 0.1};
+static float gains_y[2] = {0.0001, 0.1};
 
 static float gains_alpha2d[DDESTPAR_ALPHA2DSIZE] = {
-	0.002, 0.002, 0.002, 0.002
+	0.000002, 0.000002, 0.000002, 0.000002
 };
 
 static float gains_beta2d[DDESTPAR_BETA2DSIZE] = {
-	0.0005, 0.0005, 0.0005, 0.0005,
-	0.0005, 0.0005, 0.0005, 0.0005,
-	0.0005, 0.0005, 0.0005, 0.0005,
-	0.0005, 0.0005, 0.0005, 0.0005
+	0.001, 0.001, 0.001, 0.001,
+	0.001, 0.001, 0.001, 0.001,
+	0.001, 0.001, 0.001, 0.001,
+	0.001, 0.001, 0.001, 0.001
 };
 
 // Initial Parameters
 static float alpha_xy_init = 0;
-static float beta_x_init = 16;
-static float beta_y_init = -16;
+static float beta_x_init = 16.0;
+static float beta_y_init = -16.0;
 static float alpha2d_init[DDESTPAR_ALPHA2DSIZE] = {-20, 0, 0, 0};
 static float beta2d_init[DDESTPAR_BETA2DSIZE] = {
 	5, 5, 5, 5,
@@ -61,8 +61,8 @@ static float beta2d_init[DDESTPAR_BETA2DSIZE] = {
 
 
 // Bounds
-static float beta_x_bounds[2] = {0.1, 2};
-static float beta_y_bounds[2] = {-2.0, -0.1};
+static float beta_x_bounds[2] = {1.0, 18.0};
+static float beta_y_bounds[2] = {-18.0, -1.0};
 static float beta2d_lowerb[16] = {
 	1,1,1,1,
 	-100, -100, 1, 1,
@@ -198,26 +198,10 @@ void estimatorDD(state_t *state,
 		sensorData_t *sensors,
 		control_t *control,
 		const uint32_t tick) {
-	// Execute at 250 Hz
-	// This funciion is just updating the variables that will be logged
 	if (!RATE_DO_EXECUTE(RATE_100_HZ, tick)) {
 		return;
 	}
-
 	DDEstimator_GetState(&ddestimator_, state_vec);
-	/*
-	if (msg_counter % 300 == 0) {
-		DEBUG_PRINT("ATT %f %f %f\n",
-				(double)(state_vec[DDEST_ROLL] * 180.0f / M_PI_F),
-				(double)(state_vec[DDEST_PITCH] * 180.0f / M_PI_F),
-				(double)(state_vec[DDEST_YAW] * 180.0f / M_PI_F));
-		DEBUG_PRINT("POS %3.1f %3.1f %3.1f\n",
-				(double)state_vec[DDEST_X],
-				(double)state_vec[DDEST_Y],
-				(double)state_vec[DDEST_Z]);
-
-	}
-	*/
 }
 
 

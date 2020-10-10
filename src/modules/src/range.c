@@ -57,6 +57,7 @@ bool rangeEnqueueDownRangeInEstimator(float distance, float stdDev, uint32_t tim
   return estimatorEnqueueTOF(&tofData);
 }
 
+/*
 LOG_GROUP_START(range)
 LOG_ADD(LOG_UINT16, front, &ranges[rangeFront])
 LOG_ADD(LOG_UINT16, back, &ranges[rangeBack])
@@ -65,3 +66,4 @@ LOG_ADD(LOG_UINT16, left, &ranges[rangeLeft])
 LOG_ADD(LOG_UINT16, right, &ranges[rangeRight])
 LOG_ADD(LOG_UINT16, zrange, &ranges[rangeDown])
 LOG_GROUP_STOP(range)
+*/

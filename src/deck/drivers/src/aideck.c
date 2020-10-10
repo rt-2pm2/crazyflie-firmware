@@ -141,9 +141,11 @@ static const DeckDriver aideck_deck = {
     .test = aideckTest,
 };
 
+/*
 LOG_GROUP_START(aideck)
 LOG_ADD(LOG_UINT8, receivebyte, &byte)
 LOG_GROUP_STOP(aideck)
+*/
 
 PARAM_GROUP_START(deck)
 PARAM_ADD(PARAM_UINT8 | PARAM_RONLY, bcAIDeck, &isInit)

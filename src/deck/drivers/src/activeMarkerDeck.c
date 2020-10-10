@@ -203,7 +203,7 @@ static const DeckDriver deck_info = {
 };
 
 DECK_DRIVER(deck_info);
-
+/*
 PARAM_GROUP_START(activeMarker)
 PARAM_ADD(PARAM_UINT8, front, &requestedId[0])
 PARAM_ADD(PARAM_UINT8, back, &requestedId[1])
@@ -222,3 +222,4 @@ LOG_GROUP_START(activeMarker)
 LOG_ADD(LOG_UINT8, btSns, &deckButtonSensorValue)
 LOG_ADD(LOG_UINT8, i2cOk, &i2cOk)
 LOG_GROUP_STOP(activeMarker)
+*/

@@ -253,6 +253,7 @@ static const DeckDriver flowdeck2_deck = {
 
 DECK_DRIVER(flowdeck2_deck);
 
+/*
 LOG_GROUP_START(motion)
 LOG_ADD(LOG_UINT8, motion, &currentMotion.motion)
 LOG_ADD(LOG_INT16, deltaX, &currentMotion.deltaX)
@@ -265,6 +266,7 @@ LOG_ADD(LOG_UINT8, outlierCount, &outlierCount)
 LOG_ADD(LOG_UINT8, squal, &currentMotion.squal)
 LOG_ADD(LOG_FLOAT, std, &stdFlow)
 LOG_GROUP_STOP(motion)
+*/
 
 PARAM_GROUP_START(motion)
 PARAM_ADD(PARAM_UINT8, disable, &useFlowDisabled)

@@ -25,11 +25,9 @@ SOFTWARE.
 #include <math.h>
 
 #include "math3d.h"
-#include "estimator_dd_objects.h"
 #include "debug.h"
-#include "FreeRTOS.h"
+#include "estimator_dd_objects.h"
 #include "task.h"
-
 
 // ===========================================================
 //			DATA BUFFERS
@@ -99,8 +97,6 @@ void DDObs_EvalPseudoInv(DDObs* po) {
 	arm_matrix_instance_f32 TempNxNx2m = {
 		DDEST_STATESIZE1D, DDEST_STATESIZE1D, TempNxNx2};
 
-	
-
 	// O'
 	bad = arm_mat_trans_f32(&(po->Obsm), &TempNxNym);
 	if (bad) {DEBUG_PRINT("Error Transpose: %d \n", bad);}
@@ -160,15 +156,6 @@ void DDObs_Update(DDObs* po, const float tstamps[DDEST_BUFFERSIZE]) {
 	for (i = 0; i < DDEST_BUFFERSIZE; i++) {
 		float dT = tstamps[0] - tstamps[i];
 		po->deltaT[i] = dT;
-	}
-
-	static int counter = 0;
-	if (counter++ % 1000 == 0) {
-		DEBUG_PRINT("Time deltas: [");
-		for (int i = 0; i < DDEST_BUFFERSIZE; i++) {
-			DEBUG_PRINT("%1.4f ", (double)po->deltaT[i]);
-		}
-		DEBUG_PRINT("\n");
 	}
 
 	// Fill the Obs Matrix
@@ -264,6 +251,9 @@ void DDEstimator_Init(DDEstimator* pe) {
 
 	pe->msg_counter = 0;
 	pe->ready = false;
+
+	pe->dataMutex = xSemaphoreCreateMutexStatic(&pe->dataMutexBuffer);
+
 	pe->initialized = true;
 }
 
@@ -274,6 +264,8 @@ void DDEstimator_Reset(DDEstimator* pe) {
 void DDEstimator_AddMeas(DDEstimator* pe,
 		const float m[DDEST_NUMOFCHANNELS],
 		float tstamp) {
+
+	xSemaphoreTake(pe->dataMutex, portMAX_DELAY);
 
 	if (!pe->initialized) {
 		DEBUG_PRINT("DDEstimator Not Initialized!\n");
@@ -289,12 +281,17 @@ void DDEstimator_AddMeas(DDEstimator* pe,
 	if (pe->msg_counter > DDEST_BUFFERSIZE) {
 		pe->ready = true;
 	}
+
+	xSemaphoreGive(pe->dataMutex);
+
 }
 
 void DDEstimator_UpdateCtrl(DDEstimator* pe, float m[DDEST_NUMOFINPUTS]) {
+	xSemaphoreTake(pe->dataMutex, portMAX_DELAY);
 	for (int i = 0; i < DDEST_NUMOFCHANNELS; i++) {
 		DDEstimator1D_UpdateCtrl(&pe->estimators[i], m[i]);
 	}
+	xSemaphoreGive(pe->dataMutex);
 }
 
 /** 
@@ -308,6 +305,11 @@ void DDEstimator_UpdateCtrl(DDEstimator* pe, float m[DDEST_NUMOFINPUTS]) {
  * - Estimate the parameters
  */
 bool DDEstimator_Step(DDEstimator* pe) {
+
+	xSemaphoreTake(pe->dataMutex, portMAX_DELAY);
+
+	bool ret_val = false;
+
 	if (pe->ready) {
 		float timestamps[DDEST_BUFFERSIZE];
 
@@ -318,6 +320,8 @@ bool DDEstimator_Step(DDEstimator* pe) {
 
 		float mrt = timestamps[0];
 		if (mrt <= pe->sensors_mrt) {
+			ret_val = false;
+			xSemaphoreGive(pe->dataMutex);
 			return false;
 		}
 		pe->sensors_mrt = mrt;
@@ -328,25 +332,31 @@ bool DDEstimator_Step(DDEstimator* pe) {
 		// Run the estimation on each channel
 		for (int i = 0; i < DDEST_NUMOFCHANNELS; i++) {
 			DDEstimator1D* pest = &pe->estimators[i];
-
 			DDObs_cpy(&pest->obs_data, &pe->obs_data);
 			DDEstimator1D_Step(pest);
 		}
+		ret_val = true;
 	} else {
-		return false;
+		ret_val = false;
 	}
 
-	return true;
+	xSemaphoreGive(pe->dataMutex);
+
+	return ret_val;
 }
 
 void DDEstimator_GetMeasuresTimeInterval(DDEstimator* pe, float* deltaT) {
+	xSemaphoreTake(pe->dataMutex, portMAX_DELAY);
 	DDObs_GetMeasuresTimeInterval(&pe->obs_data, deltaT);
+	xSemaphoreGive(pe->dataMutex);
 }
 
 void DDEstimator_GetState(DDEstimator* pe,
 		float fullstate[DDEST_FULLSTATESIZE]) {
 	int glob_index = 0;
 	int i = 0;
+
+	xSemaphoreTake(pe->dataMutex, portMAX_DELAY);
 	for (i = 0; i < DDEST_NUMOFCHANNELS; i++) {
 		float state1d[DDEST_STATESIZE1D];
 		DDEstimator1D_GetState(&pe->estimators[i], state1d);
@@ -355,9 +365,11 @@ void DDEstimator_GetState(DDEstimator* pe,
 			fullstate[glob_index++] = state1d[j];	
 		}
 	}
+	xSemaphoreGive(pe->dataMutex);
 }
 
 void DDEstimator_ExportState(DDEstimator* pe, state_t* ps) {
+	xSemaphoreTake(pe->dataMutex, portMAX_DELAY);
 	for (int i = 0; i < DDEST_NUMOFCHANNELS; i++) {
 		float state1d[DDEST_STATESIZE1D];
 		DDEstimator1D_GetState(&pe->estimators[i], state1d);
@@ -417,4 +429,5 @@ void DDEstimator_ExportState(DDEstimator* pe, state_t* ps) {
 		ps->velocity.timestamp = osTick;
 		ps->acc.timestamp = osTick;
 	}
+	xSemaphoreGive(pe->dataMutex);
 }
