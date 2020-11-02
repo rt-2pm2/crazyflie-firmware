@@ -162,7 +162,6 @@ void DDEstimator1D_GetState(DDEstimator1D* pe, float s[DDEST_STATESIZE1D]);
 typedef struct DDEstimator DDEstimator;
 struct DDEstimator {
 	SemaphoreHandle_t dataMutex;
- 	StaticSemaphore_t dataMutexBuffer;
 
 	// Measurement Data
 	DDEstimator1D estimators[DDEST_NUMOFCHANNELS];

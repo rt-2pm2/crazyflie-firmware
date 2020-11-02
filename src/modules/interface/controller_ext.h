@@ -36,5 +36,7 @@ void controllerEXT(control_t *control, setpoint_t *setpoint,
                                          const state_t *state,
                                          const uint32_t tick);
 
+void controllerEXT_update_mtrs(const uint32_t m[4]);
+
 
 #endif //__CONTROLLER_EXT_H__

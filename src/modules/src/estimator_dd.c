@@ -49,9 +49,9 @@ static float gains_beta2d[DDESTPAR_BETA2DSIZE] = {
 
 // Initial Parameters
 static float alpha_xy_init = 0;
-static float beta_x_init = 16.0;
-static float beta_y_init = -16.0;
-static float alpha2d_init[DDESTPAR_ALPHA2DSIZE] = {-20, 0, 0, 0};
+static float beta_x_init = 10.0;
+static float beta_y_init = -10.0;
+static float alpha2d_init[DDESTPAR_ALPHA2DSIZE] = {-18.0, 0, 0, 0};
 static float beta2d_init[DDESTPAR_BETA2DSIZE] = {
 	5, 5, 5, 5,
 	-50, -50, 50, 50,

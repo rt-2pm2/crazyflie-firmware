@@ -111,6 +111,21 @@ void powerDistribution(const control_t *control)
   }
 }
 
+void powerDistributionPWM(const uint16_t m[4])
+{
+	motorPower.m1 = m[0];
+	motorPower.m2 = m[1];
+	motorPower.m3 = m[2];
+	motorPower.m4 = m[3];
+
+	motorsSetRatio(MOTOR_M1, motorPower.m1);
+	motorsSetRatio(MOTOR_M2, motorPower.m2);
+	motorsSetRatio(MOTOR_M3, motorPower.m3);
+	motorsSetRatio(MOTOR_M4, motorPower.m4);
+}
+
+
+
 PARAM_GROUP_START(motorPowerSet)
 PARAM_ADD(PARAM_UINT8, enable, &motorSetEnable)
 PARAM_ADD(PARAM_UINT16, m1, &motorPowerSet.m1)

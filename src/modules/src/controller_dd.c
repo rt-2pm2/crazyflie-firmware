@@ -35,7 +35,6 @@
 #include "controller_dd.h"
 
 #include "num.h"
-#include "motors.h"
 #include "param.h"
 #include "log.h"
 
@@ -43,7 +42,6 @@
 
 // STATIC VARIABLES
 DDController ddcontroller_;
-
 
 // LOG AND PARAMETERS
 static uint16_t motorPower[4];
@@ -108,13 +106,8 @@ void controllerDD_Step(const state_t *ps, DDParams* pp, float T) {
 	DDController_getControls(&ddcontroller_, motorSignals);
 	
 	for (int i = 0; i < 4; i++) {
-		motorPower[i] = limitThrust(motorSignals[i] * 65000);
+		motorPower[i] = limitThrust(motorSignals[i] * 60000);
 	}
-
-	motorsSetRatio(MOTOR_M1, motorPower[0]);
-	motorsSetRatio(MOTOR_M2, motorPower[1]);
-	motorsSetRatio(MOTOR_M3, motorPower[2]);
-	motorsSetRatio(MOTOR_M4, motorPower[3]);
 }
 
 void controllerDD_GetMotorPower(uint16_t v[4]) {
@@ -128,7 +121,6 @@ void controllerDD_GetMotorSignals(float v[4]) {
 		v[i] = motorSignals[i];
 	} 
 }
-
 
 PARAM_GROUP_START(ctrlDD_par)
 	PARAM_ADD(PARAM_FLOAT, Kxy, &Kxy_[0])

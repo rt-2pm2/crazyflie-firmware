@@ -65,4 +65,11 @@ void stabilizerResetEmergencyStop();
 void stabilizerSetEmergencyStopTimeout(int timeout);
 
 
+/**
+ * Set the pwm to be provided to the motors
+ */
+void stabilizerSetPWM(const uint16_t m[4]);
+
+
+
 #endif /* STABILIZER_H_ */

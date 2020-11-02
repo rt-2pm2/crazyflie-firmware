@@ -29,7 +29,15 @@
 */
 
 #include "controller_ext.h"
+#include "motors.h"
+#include "debug.h"
 
+#include "FreeRTOS.h"
+#include "semphr.h"
+
+static uint32_t motorPower[4];
+static SemaphoreHandle_t dataMutex;
+static bool initialized;
 
 // ======================================================================
 // 				controllerEXT	
@@ -38,6 +46,8 @@ void controllerEXTReset(void) {
 
 void controllerEXTInit(void) {
 	controllerEXTReset();
+	dataMutex = xSemaphoreCreateMutex();
+	initialized = true;
 }
 
 bool controllerEXTTest(void) {
@@ -46,16 +56,47 @@ bool controllerEXTTest(void) {
 
 
 /**
- * In the update step of the DataDriven controller we just update the reference points..
+ * In the update step I set the motor power with the value received the last time from the crtp
  */
 void controllerEXT(control_t *control, setpoint_t *setpoint,
 		const sensorData_t *sensors,
 		const state_t *state,
 		const uint32_t tick)
 {
+	if (!initialized) {
+		controllerEXTInit();
+	}
 	// Extecute at the Attitude Rate
 	if (!RATE_DO_EXECUTE(ATTITUDE_RATE, tick)) {
 		return;
 	}
 
+	if (dataMutex != NULL) {
+		xSemaphoreTake(dataMutex, portMAX_DELAY);
+	} else {
+		DEBUG_PRINT("Mutex not initialized!\n");
+		return;
+	}
+	motorsSetRatio(MOTOR_M1, motorPower[0]);
+	motorsSetRatio(MOTOR_M2, motorPower[1]);
+	motorsSetRatio(MOTOR_M3, motorPower[2]);
+	motorsSetRatio(MOTOR_M4, motorPower[3]);
+	xSemaphoreGive(dataMutex);
+}
+
+void controllerEXT_update_mtrs(const uint32_t m[4]) {
+	if (!initialized) {
+		controllerEXTInit();
+	}
+
+	if (dataMutex != NULL) {
+		xSemaphoreTake(dataMutex, portMAX_DELAY);
+		for (int i = 0; i < 4; i++) {
+			motorPower[i] = m[i];
+		}
+		xSemaphoreGive(dataMutex);
+	} else {
+		DEBUG_PRINT("Mutex not initialized!\n");
+		return;
+	}
 }

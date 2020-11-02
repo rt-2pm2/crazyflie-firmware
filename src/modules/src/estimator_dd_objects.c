@@ -279,7 +279,7 @@ void DDEstimator_AddMeas(DDEstimator* pe,
 	}
 
 	if (pe->dataMutex != NULL){
-		if (!xSemaphoreTake(pe->dataMutex, 1)) {
+		if (xSemaphoreTake(pe->dataMutex, 1) != pdTRUE) {
 			DEBUG_PRINT("Semaphore not taken!\n");
 			return;
 		}
@@ -294,7 +294,7 @@ void DDEstimator_AddMeas(DDEstimator* pe,
 
 	pe->msg_counter++;
 
-	if (pe->msg_counter > DDEST_BUFFERSIZE) {
+	if (pe->msg_counter > DDEST_BUFFERSIZE || !(pe->ready)) {
 		pe->ready = true;
 	}
 	xSemaphoreGive(pe->dataMutex);

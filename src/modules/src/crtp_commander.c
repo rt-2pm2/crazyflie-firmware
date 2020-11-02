@@ -144,4 +144,3 @@ static void commanderCrtpCBPWM(CRTPPacket* pk) {
 		crtpCommanderPWMDecodeSetpoint(pk);
 	}
 }
-

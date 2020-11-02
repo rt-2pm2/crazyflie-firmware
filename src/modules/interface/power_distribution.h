@@ -31,6 +31,7 @@
 void powerDistributionInit(void);
 bool powerDistributionTest(void);
 void powerDistribution(const control_t *control);
+void powerDistributionPWM(const uint16_t m[4]);
 void powerStop();
 
 

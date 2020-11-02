@@ -31,16 +31,17 @@
 #include "commander.h"
 #include "crtp.h"
 #include "param.h"
-#include "FreeRTOS.h"
-#include "motors.h"
 #include "num.h"
 #include "log.h"
 
-#include "debug.h"
+#include "stabilizer.h"
+
+
+#include "controller_ext.h"
 
 #define MAX_PWM  65000
 
-static uint32_t motorPower[4];
+static uint16_t motorPower[4];
 
 /**
  * CRTP commander pwm packet format
@@ -62,19 +63,13 @@ void crtpCommanderPWMDecodeSetpoint(CRTPPacket *pk)
   motorPower[1] = limitUint16(values->pwm1);
   motorPower[2] = limitUint16(values->pwm2);
   motorPower[3] = limitUint16(values->pwm3);
-
-  //DEBUG_PRINT("%lu %lu %lu %lu \n",
-//		  motorPower[0], motorPower[1], motorPower[2], motorPower[3]);
-
-  motorsSetRatio(MOTOR_M1, motorPower[0]);
-  motorsSetRatio(MOTOR_M2, motorPower[1]);
-  motorsSetRatio(MOTOR_M3, motorPower[2]);
-  motorsSetRatio(MOTOR_M4, motorPower[3]);
+  
+  stabilizerSetPWM(motorPower);
 }
 
 LOG_GROUP_START(external_pwm)
-LOG_ADD(LOG_UINT32, mPower0, &motorPower[0])
-LOG_ADD(LOG_UINT32, mPower1, &motorPower[1])
-LOG_ADD(LOG_UINT32, mPower2, &motorPower[2])
-LOG_ADD(LOG_UINT32, mPower3, &motorPower[3])
+LOG_ADD(LOG_UINT16, mPower0, &motorPower[0])
+LOG_ADD(LOG_UINT16, mPower1, &motorPower[1])
+LOG_ADD(LOG_UINT16, mPower2, &motorPower[2])
+LOG_ADD(LOG_UINT16, mPower3, &motorPower[3])
 LOG_GROUP_STOP(external_pwm)
