@@ -32,7 +32,8 @@
 #include "log.h"
 
 #define MAXTILT (3.0f * M_PI_F / 8.0f)
-#define MAXANGULARSPEED (10000.0f)
+#define MAXANGULARSPEED (2000.0f)
+#define MAXANGULARACC (50000.0f)
 
 
 // PRIVATE
@@ -65,36 +66,49 @@ void setpoint2arrays(const setpoint_t* sp,
 
 // Split the state estimate structure in different components
 void state2arrays(const state_t* sp,
-		float xest[2],
-		float yest[2],
-		float zest[2],
-		float rollest[2],
-		float pitchest[2],
-		float yawest[2]) {
+		float xest[3],
+		float yest[3],
+		float zest[3],
+		float rollest[3],
+		float pitchest[3],
+		float yawest[3]) {
 
 	xest[0] = sp->position.x;
 	xest[1] = sp->velocity.x;
+	xest[2] = sp->acc.x;
+
 
 	yest[0] = sp->position.y;
 	yest[1] = sp->velocity.y;
+	yest[2] = sp->acc.y;
 
 	zest[0] = sp->position.z;
 	zest[1] = sp->velocity.z;
+	zest[2] = sp->acc.z;
 
 	rollest[0] = sp->attitude.roll / 180.0f * M_PI_F;
 	rollest[1] = boundval(sp->attitudeRate.roll / 180.0f * M_PI_F,
 			-MAXANGULARSPEED,
 			MAXANGULARSPEED);
+	rollest[2] = boundval(sp->attitudeAcc.roll / 180.0f * M_PI_F,
+			-MAXANGULARACC,
+			MAXANGULARACC);
 
 	pitchest[0] = sp->attitude.pitch / 180.0f * M_PI_F;
 	pitchest[1] = boundval(sp->attitudeRate.pitch / 180.0f * M_PI_F,
 			-MAXANGULARSPEED,
 			MAXANGULARSPEED);
+	pitchest[2] = boundval(sp->attitudeAcc.pitch / 180.0f * M_PI_F,
+			-MAXANGULARACC,
+			MAXANGULARACC);
 
 	yawest[0] = sp->attitude.yaw / 180.0f * M_PI_F;
 	yawest[1] = boundval(sp->attitudeRate.yaw / 180.0f * M_PI_F,
 			-MAXANGULARSPEED,
 			MAXANGULARSPEED);
+	yawest[2] = boundval(sp->attitudeAcc.yaw / 180.0f * M_PI_F,
+			-MAXANGULARACC,
+			MAXANGULARACC);
 }
 
 void eval_pseudoinv(arm_matrix_instance_f32* dest, arm_matrix_instance_f32* src) {
@@ -197,12 +211,12 @@ void DDController_Step(DDController* pc,
 	}
 
 	// Get the current state estimates
-	float x_est[2];
-	float y_est[2];
-	float z_est[2];
-	float roll_est[2];
-	float pitch_est[2];
-	float yaw_est[2];
+	float x_est[3];
+	float y_est[3];
+	float z_est[3];
+	float roll_est[3];
+	float pitch_est[3];
+	float yaw_est[3];
 	state2arrays(state, x_est, y_est, z_est,
 			roll_est, pitch_est, yaw_est);
 
@@ -252,8 +266,30 @@ void DDController_Step(DDController* pc,
 	
 	eval_pseudoinv(&pc->InvBeta, &Beta);
 
+	//arm_mat_sub_f32(&pc->Phat, &Alpha, &pc->PhatMinusAlpha);
+	//arm_mat_sub_f32(&pc->Phat, &Alpha, &pc->PhatMinusAlpha);
+	//arm_mat_mult_f32(&pc->InvBeta, &pc->PhatMinusAlpha, &pc->Inputs);
+	
+	// Dirty implementation of the new version (I am reusing Alpha2D variable)
+	// Version using the estimated acceleration
+	// Phat_minus_Alpha = Desired_acc - Estimated_acc
+	par->alpha2d[0] = z_est[2];
+	par->alpha2d[1] = roll_est[2];
+	par->alpha2d[2] = pitch_est[2];
+	par->alpha2d[3] = yaw_est[2];
 	arm_mat_sub_f32(&pc->Phat, &Alpha, &pc->PhatMinusAlpha);
-	arm_mat_mult_f32(&pc->InvBeta, &pc->PhatMinusAlpha, &pc->Inputs);
+	// Computing the DeltaU = InvBeta * Phat_minus_Alpha
+	float du[4] = {0,0,0,0};
+	arm_matrix_instance_f32 DU = {
+		DDCTRL_OUTPUTSIZE,
+		1,
+		du};
+	arm_mat_mult_f32(&pc->InvBeta, &pc->PhatMinusAlpha, &DU);
+
+	// Updating the U
+	for (int i = 0; i < DDCTRL_OUTPUTSIZE; i++) {
+		pc->inputs[i] -= sqrtf(deltaT) * du[i];
+	}
 
 	for(int i = 0; i < DDCTRL_OUTPUTSIZE; i++) {
 		if(pc->inputs[i] > 1.0f){
